@@ -3,19 +3,18 @@
 [![Release](https://github.com/MichalRedm/overleaf-cli/actions/workflows/release.yml/badge.svg)](https://github.com/MichalRedm/overleaf-cli/actions/workflows/release.yml)
 [![CI](https://github.com/MichalRedm/overleaf-cli/actions/workflows/ci.yml/badge.svg)](https://github.com/MichalRedm/overleaf-cli/actions/workflows/ci.yml)
 
-Overleaf CLI is a robust, single-binary utility designed to synchronize local directory structures with self-hosted Overleaf (ShareLaTeX) Community Edition instances. It provides a seamless bridge between your favorite local LaTeX editors and the Overleaf web interface.
+**Overleaf CLI** is a robust, enterprise-ready utility designed to synchronize local directory structures with **any** Overleaf instance—including self-hosted Community Edition, Professional/Server Pro, and institutional Enterprise deployments with SSO (SAML/OAuth). It provides a seamless bridge between your favorite local LaTeX editors and the Overleaf web interface.
 
 ## Key Features
 
-- **Bidirectional-ish Sync**: Authoritative local-to-remote mirroring (`push`) with optional remote orphan deletion.
-- **Fast & Reliable**: Written in Go for high performance and minimal footprint.
-- **Automatic Auth**: Log in once and let the tool manage your session cookies.
-- **Docker Integration**: Directly queries MongoDB and accesses logs/PDFs via Docker for maximum reliability in self-hosted environments.
-- **Background Watch Mode**: Automatically sync changes as you save them locally.
-- **Project Lifecycle Management**: Create and delete projects via CLI (powered by Playwright).
-- **Log Streaming**: Tail LaTeX compilation logs directly in your terminal.
-- **Custom Authentication**: Support for non-standard login flows (SAML/OAuth) via external scripts.
-- **Hybrid Synchronization**: Works with both local Docker instances and remote Overleaf instances via Web API.
+- **Universal Compatibility**: Works with standard Overleaf.com, self-hosted ShareLaTeX, and institutional University instances.
+- **Advanced Authentication**: Native support for standard logins and delegated support for complex SSO/SAML/OAuth flows via custom authentication scripts.
+- **Native Entity Discovery**: Bypasses restricted REST APIs using a native Go `socket.io` implementation to retrieve project structures directly from the server.
+- **Bidirectional-ish Sync**: Authoritative local-to-remote mirroring (`push`) with intelligent orphan pruning.
+- **Background Watch Mode**: Automatically sync changes to the cloud the moment you save them locally.
+- **Project Management**: Create, delete, and initialize projects directly from the terminal.
+- **Cloud Compilation**: Trigger remote builds and stream LaTeX errors/warnings or download the resulting PDF.
+- **Docker Integration**: Optimized performance for local self-hosted instances via direct container interaction.
 
 ## 🚀 Quick Start
 
@@ -60,15 +59,13 @@ overleaf-cli install
 
 ### Custom Authentication
 
-For instances using non-standard login (e.g., SAML, OAuth, SSO), you can use the `custom` authentication type. This allows you to point to an external script that handles the login and returns the session cookie.
+For instances using non-standard login (e.g., SAML, OAuth, SSO), you can use the `custom` authentication type. This allows you to point to an external script (e.g. using Playwright or Puppeteer) that handles the complex login flow and returns the session cookie.
 
-1. Set `"auth_type": "custom"` and `"auth_command": "python scripts/auth_put.py"` in your config.
+1. Set `"auth_type": "custom"` and `"auth_command": "python auth_script.py"` in your config.
 2. The command will receive `OVERLEAF_EMAIL`, `OVERLEAF_PASSWORD`, and `OVERLEAF_URL` as environment variables.
-3. The command must print **ONLY the raw session cookie value** (e.g., the value of `overleaf.sid`) to `stdout`. 
+3. The command must print **ONLY the raw session cookie value** (e.g., the value of `overleaf.sid` or `sharelatex.sid`) to `stdout`. 
    - **Important**: Any logging or debug messages must be redirected to `stderr`.
-   - **Tip**: Ensure your script waits for the redirect to `/project/:id` before capturing the cookie to guarantee the session is valid.
-
-See [scripts/auth_put.py](scripts/auth_put.py) for a reference implementation.
+   - **Tip**: Ensure your script waits for the redirect to `/project` before capturing the cookie to guarantee the session is fully established.
 
 ### Native Entity Discovery
 
