@@ -311,9 +311,11 @@ func (c *Client) DiscoverEntitiesInternal() (*EntityMap, error) {
 	deadline := time.Now().Add(20 * time.Second)
 	
 	// Send joinProject immediately with ID 1
-	websocket.Message.Send(ws, fmt.Sprintf(`5:1::{"name":"joinProject","args":[{"project_id":"%s"}]}`, c.ProjectID))
+	if err := websocket.Message.Send(ws, fmt.Sprintf(`5:1::{"name":"joinProject","args":[{"project_id":"%s"}]}`, c.ProjectID)); err != nil {
+		return nil, fmt.Errorf("failed to send joinProject: %w", err)
+	}
 	// Also send without ID just in case
-	websocket.Message.Send(ws, fmt.Sprintf(`5:::{"name":"joinProject","args":[{"project_id":"%s"}]}`, c.ProjectID))
+	_ = websocket.Message.Send(ws, fmt.Sprintf(`5:::{"name":"joinProject","args":[{"project_id":"%s"}]}`, c.ProjectID))
 
 	for time.Now().Before(deadline) {
 		var reply string
@@ -355,7 +357,7 @@ func (c *Client) DiscoverEntitiesInternal() (*EntityMap, error) {
 		
 		// Handle heartbeats to keep connection alive
 		if reply == "2::" {
-			websocket.Message.Send(ws, "2::")
+			_ = websocket.Message.Send(ws, "2::")
 		}
 	}
 

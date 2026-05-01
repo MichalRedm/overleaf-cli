@@ -71,7 +71,8 @@ func NewClient(baseURL, projectID, cookie, authType, authCommand, discoveryComma
 	if projectID != "" {
 		if err := client.RefreshCSRF(); err != nil {
 			// If we fail here, maybe we are not logged in yet, which is fine if we intend to login
-			// But we'll try to find the correct cookie name first
+			// but we'll log it as a warning
+			fmt.Printf("Initial CSRF refresh failed: %v\n", err)
 		}
 	}
 
