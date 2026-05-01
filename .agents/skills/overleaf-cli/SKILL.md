@@ -72,11 +72,10 @@ If a standard email/password login is not supported by the Overleaf instance (e.
 3. **Configure CLI**: Set `auth_type` to `custom` and `auth_command` to run the script (e.g., `python scripts/auth.py`).
 4. **Environment Variables**: The CLI will automatically pass `OVERLEAF_EMAIL`, `OVERLEAF_PASSWORD`, and `OVERLEAF_URL` to the script.
 
-## Entity Discovery (Native Fallback)
+## Entity Discovery (Native)
 
 On instances where the standard REST API is restricted (e.g., returns paths without IDs), the CLI implements **Native Discovery**:
-- **Native Websocket**: The CLI establishes a Socket.io connection to fetch the project tree directly from the server.
-- **Custom Discovery**: If native discovery fails, you can set `discovery_command` in config to a script that outputs a JSON map of `path -> {id, type}`.
+- **Native Websocket**: The CLI automatically establishes a Socket.io connection to fetch the project tree directly from the server. This is the most reliable method for non-standard university instances.
 
 ## Best Practices
 - **Auto-Login**: Provide `email` and `password` in the config for seamless session management. The CLI will cache the session cookie in the config file.

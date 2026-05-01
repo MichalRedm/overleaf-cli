@@ -69,11 +69,10 @@ For instances using non-standard login (e.g., SAML, OAuth, SSO), you can use the
 
 ### Native Entity Discovery
 
-On older or restricted Overleaf instances where the standard REST API doesn't return entity IDs, the CLI automatically falls back to **Native Discovery**:
+On instances where the standard REST API is restricted (e.g., returns paths without IDs), the CLI automatically uses **Native Discovery**:
 - It establishes a temporary Socket.io connection to the server.
 - It joins the project and retrieves the full directory structure (tree) with IDs.
-- This process is fully automatic and requires no user configuration.
-- If native discovery fails, you can provide an optional `discovery_command` in your config to use an external scraper.
+- This process is fully automatic and requires no manual configuration or external scripts.
 
 ## Hybrid Mode (Web API vs Docker)
 
