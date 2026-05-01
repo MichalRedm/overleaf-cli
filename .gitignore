@@ -1,0 +1,28 @@
+# Binaries
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+overleaf-cli
+
+# Test binary
+*.test
+
+# Output of 'go generate'
+# (No fixed convention)
+
+# Dependency directories (remove the comment below to include it)
+# vendor/
+
+# Go workspace file
+go.work
+go.work.sum
+
+# IDEs
+.idea/
+.vscode/
+
+# Configs
+overleaf_config.json
+.agents/

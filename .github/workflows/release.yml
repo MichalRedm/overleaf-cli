@@ -1,0 +1,39 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    name: Build and Release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.21'
+
+      - name: Build binaries
+        run: |
+          mkdir -p dist
+          GOOS=windows GOARCH=amd64 go build -o dist/overleaf-cli-windows-amd64.exe main.go
+          GOOS=linux GOARCH=amd64 go build -o dist/overleaf-cli-linux-amd64 main.go
+          GOOS=darwin GOARCH=amd64 go build -o dist/overleaf-cli-darwin-amd64 main.go
+          GOOS=darwin GOARCH=arm64 go build -o dist/overleaf-cli-darwin-arm64 main.go
+
+      - name: Create Release
+        id: create_release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            dist/overleaf-cli-windows-amd64.exe
+            dist/overleaf-cli-linux-amd64
+            dist/overleaf-cli-darwin-amd64
+            dist/overleaf-cli-darwin-arm64
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
