@@ -71,7 +71,7 @@ var projectRmCmd = &cobra.Command{
 
 func init() {
 	projectCreateCmd.Flags().StringP("name", "n", "", "project name")
-	projectCreateCmd.MarkFlagRequired("name")
+	_ = projectCreateCmd.MarkFlagRequired("name")
 	
 	projectRmCmd.Flags().String("id", "", "project ID to delete (defaults to config ID)")
 	

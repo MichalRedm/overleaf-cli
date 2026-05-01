@@ -79,7 +79,7 @@ func (c *Client) parseRecursiveFolder(folder map[string]interface{}, path string
 	}
 	name, _ := folder["name"].(string)
 
-	fullPath := path
+	var fullPath string
 	if name == "rootFolder" {
 		fullPath = ""
 		em.RootID = id

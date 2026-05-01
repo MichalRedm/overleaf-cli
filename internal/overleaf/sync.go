@@ -45,7 +45,10 @@ func (c *Client) GetOrCreateFolder(path string, rootID string, em *EntityMap) (s
 			"name":             part,
 			"parent_folder_id": currentID,
 		}
-		body, _ := json.Marshal(payload)
+		body, err := json.Marshal(payload)
+		if err != nil {
+			return "", err
+		}
 		
 		req, err := http.NewRequest("POST", fmt.Sprintf("%s/project/%s/folder", c.BaseURL, c.ProjectID), bytes.NewBuffer(body))
 		if err != nil {
@@ -65,12 +68,17 @@ func (c *Client) GetOrCreateFolder(path string, rootID string, em *EntityMap) (s
 			var res struct {
 				ID string `json:"id"`
 			}
-			json.NewDecoder(resp.Body).Decode(&res)
+			if err := json.NewDecoder(resp.Body).Decode(&res); err != nil {
+				return "", err
+			}
 			em.Folders[currentPath] = res.ID
 			currentID = res.ID
 		} else {
 			// Check if already exists
-			respBody, _ := io.ReadAll(resp.Body)
+			respBody, err := io.ReadAll(resp.Body)
+			if err != nil {
+				respBody = []byte("could not read error body")
+			}
 			if strings.Contains(string(respBody), "already exists") {
 				// Refresh entities and try again
 				newEm, err := c.GetEntities()
@@ -110,18 +118,32 @@ func (c *Client) UploadFile(localPath string, remotePath string, rootID string, 
 	writer := multipart.NewWriter(body)
 
 	// Add CSRF
-	writer.WriteField("_csrf", c.CSRF)
-	writer.WriteField("qquuid", uuid.New().String())
-	writer.WriteField("qqfilename", filename)
-	writer.WriteField("name", filename)
-	writer.WriteField("qqtotalfilesize", fmt.Sprintf("%d", fileInfo.Size()))
+	if err := writer.WriteField("_csrf", c.CSRF); err != nil {
+		return err
+	}
+	if err := writer.WriteField("qquuid", uuid.New().String()); err != nil {
+		return err
+	}
+	if err := writer.WriteField("qqfilename", filename); err != nil {
+		return err
+	}
+	if err := writer.WriteField("name", filename); err != nil {
+		return err
+	}
+	if err := writer.WriteField("qqtotalfilesize", fmt.Sprintf("%d", fileInfo.Size())); err != nil {
+		return err
+	}
 
 	part, err := writer.CreateFormFile("qqfile", filename)
 	if err != nil {
 		return err
 	}
-	io.Copy(part, file)
-	writer.Close()
+	if _, err := io.Copy(part, file); err != nil {
+		return err
+	}
+	if err := writer.Close(); err != nil {
+		return err
+	}
 
 	uploadURL := fmt.Sprintf("%s/project/%s/upload?folder_id=%s", c.BaseURL, c.ProjectID, folderID)
 	req, err := http.NewRequest("POST", uploadURL, body)
@@ -142,10 +164,12 @@ func (c *Client) UploadFile(localPath string, remotePath string, rootID string, 
 	if resp.StatusCode != 200 {
 		if resp.StatusCode == 403 {
 			fmt.Println("CSRF might have expired, refreshing...")
-			c.RefreshCSRF()
-			// Retry once? For now just return error
+			_ = c.RefreshCSRF()
 		}
-		respBody, _ := io.ReadAll(resp.Body)
+		respBody, err := io.ReadAll(resp.Body)
+		if err != nil {
+			respBody = []byte("could not read error body")
+		}
 		return fmt.Errorf("failed to upload %s: %d - %s", filename, resp.StatusCode, string(respBody))
 	}
 
@@ -153,7 +177,9 @@ func (c *Client) UploadFile(localPath string, remotePath string, rootID string, 
 		Success bool   `json:"success"`
 		Error   string `json:"error"`
 	}
-	json.NewDecoder(resp.Body).Decode(&res)
+	if err := json.NewDecoder(resp.Body).Decode(&res); err != nil {
+		return err
+	}
 	if !res.Success {
 		return fmt.Errorf("server rejected %s: %s", filename, res.Error)
 	}
@@ -179,7 +205,10 @@ func (c *Client) DeleteEntity(entityID string, entityType EntityType) error {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != 200 && resp.StatusCode != 204 {
-		respBody, _ := io.ReadAll(resp.Body)
+		respBody, err := io.ReadAll(resp.Body)
+		if err != nil {
+			respBody = []byte("could not read error body")
+		}
 		return fmt.Errorf("failed to delete %s %s: %d - %s", entityType, entityID, resp.StatusCode, string(respBody))
 	}
 

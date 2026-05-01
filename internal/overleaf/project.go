@@ -54,7 +54,7 @@ async (page) => {
 	}
 
 	c.ProjectID = pid
-	c.RefreshCSRF()
+	_ = c.RefreshCSRF()
 	return pid, nil
 }
 
