@@ -20,8 +20,14 @@ var pushCmd = &cobra.Command{
 			return
 		}
 
-		src, _ := cmd.Flags().GetString("src")
-		deleteRemote, _ := cmd.Flags().GetBool("delete")
+		src, err := cmd.Flags().GetString("src")
+		if err != nil {
+			src = "."
+		}
+		deleteRemote, err := cmd.Flags().GetBool("delete")
+		if err != nil {
+			deleteRemote = false
+		}
 
 		em, err := client.GetEntities()
 		if err != nil {
@@ -60,14 +66,16 @@ var pushCmd = &cobra.Command{
 			localEntities[relPath] = true
 
 			if !info.IsDir() {
-				// If it exists on remote but as a folder, we might need to handle it.
-				// For simplicity, we just upload/overwrite.
 				if ent, ok := em.Entities[relPath]; ok {
 					if ent.Type != overleaf.EntityFolder {
-						client.DeleteEntity(ent.ID, ent.Type)
+						if err := client.DeleteEntity(ent.ID, ent.Type); err != nil {
+							fmt.Printf("Warning: failed to delete existing entity %s: %v\n", relPath, err)
+						}
 					}
 				}
-				client.UploadFile(path, relPath, rootID, em)
+				if err := client.UploadFile(path, relPath, rootID, em); err != nil {
+					fmt.Printf("Error uploading %s: %v\n", relPath, err)
+				}
 			}
 			return nil
 		})
@@ -80,7 +88,11 @@ var pushCmd = &cobra.Command{
 		if deleteRemote {
 			fmt.Println("Pruning remote entities not present locally...")
 			// Refresh entities to get latest state
-			em, _ = client.GetEntities()
+			em, err = client.GetEntities()
+			if err != nil {
+				fmt.Printf("Error refreshing entities for pruning: %v\n", err)
+				return
+			}
 			
 			// Collect paths to delete (longest first to handle nested folders)
 			var toDelete []string
@@ -115,7 +127,9 @@ var pushCmd = &cobra.Command{
 					}
 				}
 				fmt.Printf("Pruning %s (%s)...\n", path, ent.Type)
-				client.DeleteEntity(ent.ID, ent.Type)
+				if err := client.DeleteEntity(ent.ID, ent.Type); err != nil {
+					fmt.Printf("Error pruning %s: %v\n", path, err)
+				}
 			}
 		}
 	},

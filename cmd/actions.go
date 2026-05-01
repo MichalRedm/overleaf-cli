@@ -12,7 +12,9 @@ var compileCmd = &cobra.Command{
 		if client == nil {
 			return
 		}
-		client.Compile()
+		if err := client.Compile(); err != nil {
+			fmt.Printf("Error during compilation: %v\n", err)
+		}
 	},
 }
 
@@ -36,8 +38,13 @@ var pdfCmd = &cobra.Command{
 		if client == nil {
 			return
 		}
-		out, _ := cmd.Flags().GetString("out")
-		client.DownloadPDF(out)
+		out, err := cmd.Flags().GetString("out")
+		if err != nil {
+			out = "output.pdf"
+		}
+		if err := client.DownloadPDF(out); err != nil {
+			fmt.Printf("Error downloading PDF: %v\n", err)
+		}
 	},
 }
 

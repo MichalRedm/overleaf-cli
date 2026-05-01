@@ -23,8 +23,14 @@ var watchCmd = &cobra.Command{
 			return
 		}
 
-		src, _ := cmd.Flags().GetString("src")
-		deleteRemote, _ := cmd.Flags().GetBool("delete")
+		src, err := cmd.Flags().GetString("src")
+		if err != nil {
+			src = "."
+		}
+		deleteRemote, err := cmd.Flags().GetBool("delete")
+		if err != nil {
+			deleteRemote = false
+		}
 
 		watcher, err := fsnotify.NewWatcher()
 		if err != nil {
@@ -39,7 +45,9 @@ var watchCmd = &cobra.Command{
 			filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
 				if err == nil && info.IsDir() {
 					if !strings.HasPrefix(filepath.Base(path), ".") {
-						watcher.Add(path)
+						if err := watcher.Add(path); err != nil {
+							fmt.Printf("Warning: failed to watch directory %s: %v\n", path, err)
+						}
 					}
 				}
 				return nil
@@ -132,7 +140,9 @@ func push(client *overleaf.Client, src string, deleteRemote bool, configRootID s
 		}
 		localEntities[relPath] = true
 		if !info.IsDir() {
-			client.UploadFile(path, relPath, rootID, em)
+			if err := client.UploadFile(path, relPath, rootID, em); err != nil {
+				fmt.Printf("Error uploading %s: %v\n", relPath, err)
+			}
 		}
 		return nil
 	})

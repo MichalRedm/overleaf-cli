@@ -17,7 +17,10 @@ func (c *Client) Compile() error {
 		"rootDoc_id":                 "",
 		"stopOnFirstError":           false,
 	}
-	body, _ := json.Marshal(payload)
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return err
+	}
 
 	compileURL := fmt.Sprintf("%s/project/%s/compile?enable_pdf_caching=true", c.BaseURL, c.ProjectID)
 	req, err := http.NewRequest("POST", compileURL, bytes.NewBuffer(body))
@@ -42,7 +45,9 @@ func (c *Client) Compile() error {
 	var res struct {
 		Status string `json:"status"`
 	}
-	json.NewDecoder(resp.Body).Decode(&res)
+	if err := json.NewDecoder(resp.Body).Decode(&res); err != nil {
+		return err
+	}
 	fmt.Printf("Compilation status: %s\n", res.Status)
 
 	c.ShowLogs()
@@ -71,7 +76,11 @@ func (c *Client) ShowLogs() {
 
 	fmt.Printf("Reading logs from container: %s\n", logPath)
 	catCmd := exec.Command("docker", "exec", "sharelatex", "cat", logPath)
-	logOut, _ := catCmd.Output()
+	logOut, err := catCmd.Output()
+	if err != nil {
+		fmt.Printf("Failed to read logs: %v\n", err)
+		return
+	}
 	lines := strings.Split(string(logOut), "\n")
 
 	fmt.Println("\n--- LaTeX Errors and Warnings ---")
@@ -96,7 +105,7 @@ func (c *Client) ShowLogs() {
 	if !found {
 		fmt.Println("No obvious errors or warnings found in the log.")
 	}
-	fmt.Println("--- End of Logs ---\n")
+	fmt.Println("--- End of Logs ---")
 }
 
 func (c *Client) DownloadPDF(outputPath string) error {

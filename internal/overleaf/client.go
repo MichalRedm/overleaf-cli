@@ -21,7 +21,10 @@ type Client struct {
 }
 
 func NewClient(baseURL, projectID, cookie string) (*Client, error) {
-	jar, _ := cookiejar.New(nil)
+	jar, err := cookiejar.New(nil)
+	if err != nil {
+		return nil, err
+	}
 	u, err := url.Parse(baseURL)
 	if err != nil {
 		return nil, err
@@ -166,7 +169,10 @@ func (c *Client) Login(email, password string) error {
 	}
 
 	// Capture new cookie
-	u, _ := url.Parse(c.BaseURL)
+	u, err := url.Parse(c.BaseURL)
+	if err != nil {
+		return err
+	}
 	cookies := c.HTTP.Jar.Cookies(u)
 	for _, cookie := range cookies {
 		if cookie.Name == "overleaf.sid" {

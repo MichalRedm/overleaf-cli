@@ -24,7 +24,10 @@ func Execute() {
 }
 
 func getClient(cmd *cobra.Command) (*overleaf.Client, *config.Config) {
-	configPath, _ := cmd.Flags().GetString("config")
+	configPath, err := cmd.Flags().GetString("config")
+	if err != nil {
+		configPath = "overleaf_config.json"
+	}
 	cfg, err := config.Load(configPath)
 	if err != nil {
 		fmt.Printf("Error loading config: %v\n", err)
@@ -47,7 +50,9 @@ func getClient(cmd *cobra.Command) (*overleaf.Client, *config.Config) {
 			}
 			// Update config with new cookie
 			cfg.Cookie = client.Cookie
-			config.Save(configPath, cfg)
+			if err := config.Save(configPath, cfg); err != nil {
+				fmt.Printf("Warning: failed to save updated cookie to config: %v\n", err)
+			}
 		} else {
 			fmt.Println("Session invalid and no credentials provided in config. Please run 'init' or update config.")
 			return nil, nil
