@@ -4,8 +4,14 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
+	"os"
 	"os/exec"
 	"strings"
+	"time"
+
+	"golang.org/x/net/websocket"
 )
 
 type EntityType string
@@ -33,7 +39,82 @@ func (c *Client) GetEntities() (*EntityMap, error) {
 		Entities: make(map[string]RemoteEntity),
 	}
 
-	// Try Docker/MongoDB first (Authoritative)
+	// Try local override first (useful for non-standard instances where API is crippled)
+	if data, err := os.ReadFile("overleaf_entities.json"); err == nil {
+		var override struct {
+			RootID   string                  `json:"RootID"`
+			Entities map[string]RemoteEntity `json:"Entities"`
+		}
+		if err := json.Unmarshal(data, &override); err == nil {
+			em.RootID = override.RootID
+			em.Entities = override.Entities
+			for path, info := range em.Entities {
+				if info.Type == EntityFolder {
+					em.Folders[path] = info.ID
+				}
+			}
+			fmt.Println("Using entities from overleaf_entities.json override")
+			return em, nil
+		}
+	}
+
+	// Try Discovery Command (fallback for non-standard instances)
+	if c.DiscoveryCommand != "" {
+		fmt.Printf("Attempting entity discovery using command: %s\n", c.DiscoveryCommand)
+		cmd := exec.Command("sh", "-c", c.DiscoveryCommand)
+		if strings.Contains(strings.ToLower(os.Getenv("OS")), "windows") {
+			cmd = exec.Command("cmd", "/C", c.DiscoveryCommand)
+		}
+
+		cmd.Env = append(os.Environ(),
+			fmt.Sprintf("OVERLEAF_URL=%s", c.BaseURL),
+			fmt.Sprintf("OVERLEAF_PROJECT_ID=%s", c.ProjectID),
+			fmt.Sprintf("OVERLEAF_COOKIE=%s", c.Cookie),
+		)
+
+		out, err := cmd.Output()
+		if err == nil {
+			var discovery struct {
+				RootID   string                  `json:"RootID"`
+				Entities map[string]RemoteEntity `json:"Entities"`
+			}
+			if err := json.Unmarshal(out, &discovery); err == nil {
+				em.RootID = discovery.RootID
+				em.Entities = discovery.Entities
+				for path, info := range em.Entities {
+					if info.Type == EntityFolder {
+						em.Folders[path] = info.ID
+					}
+				}
+				fmt.Println("Successfully discovered entities via custom command")
+				return em, nil
+			}
+		} else {
+			if exitErr, ok := err.(*exec.ExitError); ok {
+				fmt.Printf("Discovery command failed: %s\n", string(exitErr.Stderr))
+			} else {
+				fmt.Printf("Discovery command failed: %v\n", err)
+			}
+		}
+	}
+
+	// Try Internal Websocket Discovery (native fallback)
+	fmt.Println("Attempting native entity discovery via websocket...")
+	if discovery, err := c.DiscoverEntitiesInternal(); err == nil {
+		em.RootID = discovery.RootID
+		em.Entities = discovery.Entities
+		for path, info := range em.Entities {
+			if info.Type == EntityFolder {
+				em.Folders[path] = info.ID
+			}
+		}
+		fmt.Println("Successfully discovered entities via native websocket")
+		return em, nil
+	} else {
+		fmt.Printf("Native discovery failed: %v\n", err)
+	}
+
+	// Try Docker/MongoDB second
 	cmdStr := fmt.Sprintf("JSON.stringify(db.projects.findOne({_id: ObjectId('%s')}, {rootFolder: 1}).rootFolder)", c.ProjectID)
 	cmd := exec.Command("docker", "exec", "mongo", "mongosh", "sharelatex", "--quiet", "--eval", cmdStr)
 	var out bytes.Buffer
@@ -185,4 +266,103 @@ func (c *Client) parseFlatEntities(entities []map[string]interface{}, em *Entity
 			em.Entities[path] = RemoteEntity{ID: id, Type: eType}
 		}
 	}
+}
+
+func (c *Client) DiscoverEntitiesInternal() (*EntityMap, error) {
+	// 1. Handshake
+	handshakeURL := fmt.Sprintf("%s/socket.io/1/?projectId=%s&t=%d", c.BaseURL, c.ProjectID, time.Now().UnixMilli())
+	req, _ := http.NewRequest("POST", handshakeURL, nil)
+	req.Header.Set("Cookie", c.Cookie)
+	resp, err := c.HTTP.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("handshake failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, _ := io.ReadAll(resp.Body)
+	parts := strings.Split(string(body), ":")
+	if len(parts) < 1 || parts[0] == "" {
+		return nil, fmt.Errorf("invalid handshake response: %s", string(body))
+	}
+	sessionID := parts[0]
+
+	// 2. Connect via Websocket
+	wsURL := fmt.Sprintf("%s/socket.io/1/websocket/%s?projectId=%s", strings.Replace(c.BaseURL, "http", "ws", 1), sessionID, c.ProjectID)
+	config, err := websocket.NewConfig(wsURL, c.BaseURL+"/")
+	if err != nil {
+		return nil, fmt.Errorf("ws config failed: %w", err)
+	}
+	// Important: Cookie must be name=value
+	config.Header.Set("Cookie", fmt.Sprintf("%s=%s", c.CookieName, c.Cookie))
+	config.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+
+	ws, err := websocket.DialConfig(config)
+	if err != nil {
+		return nil, fmt.Errorf("ws dial failed: %w", err)
+	}
+	defer ws.Close()
+
+	// 3. State machine: Send joinProject -> Wait for response
+	em := &EntityMap{
+		Folders:  make(map[string]string),
+		Entities: make(map[string]RemoteEntity),
+	}
+	var rootFolder map[string]interface{}
+	deadline := time.Now().Add(20 * time.Second)
+	
+	// Send joinProject immediately with ID 1
+	websocket.Message.Send(ws, fmt.Sprintf(`5:1::{"name":"joinProject","args":[{"project_id":"%s"}]}`, c.ProjectID))
+	// Also send without ID just in case
+	websocket.Message.Send(ws, fmt.Sprintf(`5:::{"name":"joinProject","args":[{"project_id":"%s"}]}`, c.ProjectID))
+
+	for time.Now().Before(deadline) {
+		var reply string
+		if err := websocket.Message.Receive(ws, &reply); err != nil {
+			return nil, fmt.Errorf("ws receive failed: %w", err)
+		}
+
+		if strings.Contains(reply, "project:joined") || strings.Contains(reply, "joinProjectResponse") {
+			// Extract the JSON part after 5:ID::
+			start := strings.Index(reply, "{")
+			if start == -1 {
+				continue
+			}
+			var msg struct {
+				Name string `json:"name"`
+				Args []struct {
+					Project struct {
+						RootFolder interface{} `json:"rootFolder"`
+					} `json:"project"`
+				} `json:"args"`
+			}
+			if err := json.Unmarshal([]byte(reply[start:]), &msg); err != nil {
+				continue
+			}
+			if len(msg.Args) > 0 {
+				rf := msg.Args[0].Project.RootFolder
+				// rootFolder can be an array or a single object
+				if slice, ok := rf.([]interface{}); ok && len(slice) > 0 {
+					rootFolder = slice[0].(map[string]interface{})
+				} else if obj, ok := rf.(map[string]interface{}); ok {
+					rootFolder = obj
+				}
+				
+				if rootFolder != nil {
+					break
+				}
+			}
+		}
+		
+		// Handle heartbeats to keep connection alive
+		if reply == "2::" {
+			websocket.Message.Send(ws, "2::")
+		}
+	}
+
+	if rootFolder == nil {
+		return nil, fmt.Errorf("timeout waiting for project tree")
+	}
+
+	c.parseRecursiveFolder(rootFolder, "", em)
+	return em, nil
 }
