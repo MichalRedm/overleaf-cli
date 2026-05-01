@@ -14,7 +14,10 @@ var initCmd = &cobra.Command{
 	Use:   "init",
 	Short: "Initialize configuration for Overleaf CLI",
 	Run: func(cmd *cobra.Command, args []string) {
-		configPath, _ := cmd.Flags().GetString("config")
+		configPath, err := cmd.Flags().GetString("config")
+		if err != nil {
+			configPath = "overleaf_config.json"
+		}
 		
 		reader := bufio.NewReader(os.Stdin)
 

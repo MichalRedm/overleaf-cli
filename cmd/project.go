@@ -19,8 +19,14 @@ var projectCreateCmd = &cobra.Command{
 		if client == nil {
 			return
 		}
-		configPath, _ := cmd.Flags().GetString("config")
-		name, _ := cmd.Flags().GetString("name")
+		configPath, err := cmd.Flags().GetString("config")
+		if err != nil {
+			configPath = "overleaf_config.json"
+		}
+		name, err := cmd.Flags().GetString("name")
+		if err != nil {
+			name = "New Project"
+		}
 
 		newID, err := client.CreateProject(name)
 		if err != nil {
@@ -47,7 +53,10 @@ var projectRmCmd = &cobra.Command{
 			return
 		}
 
-		id, _ := cmd.Flags().GetString("id")
+		id, err := cmd.Flags().GetString("id")
+		if err != nil {
+			id = ""
+		}
 		if id == "" {
 			id = cfg.ProjectID
 		}
