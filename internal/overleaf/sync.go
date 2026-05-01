@@ -58,7 +58,7 @@ func (c *Client) GetOrCreateFolder(path string, rootID string, em *EntityMap) (s
 		req.Header.Set("X-Csrf-Token", c.CSRF)
 		req.Header.Set("Referer", fmt.Sprintf("%s/project/%s", c.BaseURL, c.ProjectID))
 
-		resp, err := c.HTTP.Do(req)
+		resp, err := c.DoWithRetry(req)
 		if err != nil {
 			return "", err
 		}
@@ -155,7 +155,7 @@ func (c *Client) UploadFile(localPath string, remotePath string, rootID string, 
 	req.Header.Set("Referer", fmt.Sprintf("%s/project/%s", c.BaseURL, c.ProjectID))
 
 	fmt.Printf("Uploading %s to folder %s...\n", filename, folderID)
-	resp, err := c.HTTP.Do(req)
+	resp, err := c.DoWithRetry(req)
 	if err != nil {
 		return err
 	}
@@ -198,7 +198,7 @@ func (c *Client) DeleteEntity(entityID string, entityType EntityType) error {
 	req.Header.Set("Referer", fmt.Sprintf("%s/project/%s", c.BaseURL, c.ProjectID))
 
 	fmt.Printf("Deleting %s %s...\n", entityType, entityID)
-	resp, err := c.HTTP.Do(req)
+	resp, err := c.DoWithRetry(req)
 	if err != nil {
 		return err
 	}

@@ -1,6 +1,7 @@
 package overleaf
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"net/http"
@@ -10,6 +11,7 @@ import (
 	"os/exec"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/PuerkitoBio/goquery"
 )
@@ -281,4 +283,43 @@ type uaRoundTripper struct {
 func (t *uaRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 	req.Header.Set("User-Agent", t.ua)
 	return t.rt.RoundTrip(req)
+}
+
+func (c *Client) DoWithRetry(req *http.Request) (*http.Response, error) {
+	var resp *http.Response
+	var err error
+	maxRetries := 10
+	backoff := 1 * time.Second
+
+	for i := 0; i < maxRetries; i++ {
+		// Clone request body for retries if it's not nil
+		var bodyBytes []byte
+		if req.Body != nil {
+			bodyBytes, _ = io.ReadAll(req.Body)
+			req.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
+		}
+
+		resp, err = c.HTTP.Do(req)
+		
+		// Restore body for next attempt if needed
+		if bodyBytes != nil {
+			req.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
+		}
+
+		if err != nil {
+			return nil, err
+		}
+
+		if resp.StatusCode == 429 {
+			fmt.Printf("Rate limited (429), retrying in %v... (attempt %d/%d)\n", backoff, i+1, maxRetries)
+			resp.Body.Close()
+			time.Sleep(backoff)
+			backoff *= 2
+			continue
+		}
+
+		return resp, nil
+	}
+
+	return resp, fmt.Errorf("max retries reached for 429 errors")
 }
