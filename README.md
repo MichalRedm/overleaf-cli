@@ -1,6 +1,7 @@
 # Overleaf CLI
 
 [![Release](https://github.com/MichalRedm/overleaf-cli/actions/workflows/release.yml/badge.svg)](https://github.com/MichalRedm/overleaf-cli/actions/workflows/release.yml)
+[![CI](https://github.com/MichalRedm/overleaf-cli/actions/workflows/ci.yml/badge.svg)](https://github.com/MichalRedm/overleaf-cli/actions/workflows/ci.yml)
 
 Overleaf CLI is a robust, single-binary utility designed to synchronize local directory structures with self-hosted Overleaf (ShareLaTeX) Community Edition instances. It provides a seamless bridge between your favorite local LaTeX editors and the Overleaf web interface.
 
