@@ -39,66 +39,7 @@ func (c *Client) GetEntities() (*EntityMap, error) {
 		Entities: make(map[string]RemoteEntity),
 	}
 
-	// Try local override first (useful for non-standard instances where API is crippled)
-	if data, err := os.ReadFile("overleaf_entities.json"); err == nil {
-		var override struct {
-			RootID   string                  `json:"RootID"`
-			Entities map[string]RemoteEntity `json:"Entities"`
-		}
-		if err := json.Unmarshal(data, &override); err == nil {
-			em.RootID = override.RootID
-			em.Entities = override.Entities
-			for path, info := range em.Entities {
-				if info.Type == EntityFolder {
-					em.Folders[path] = info.ID
-				}
-			}
-			fmt.Println("Using entities from overleaf_entities.json override")
-			return em, nil
-		}
-	}
-
-	// Try Discovery Command (fallback for non-standard instances)
-	if c.DiscoveryCommand != "" {
-		fmt.Printf("Attempting entity discovery using command: %s\n", c.DiscoveryCommand)
-		cmd := exec.Command("sh", "-c", c.DiscoveryCommand)
-		if strings.Contains(strings.ToLower(os.Getenv("OS")), "windows") {
-			cmd = exec.Command("cmd", "/C", c.DiscoveryCommand)
-		}
-
-		cmd.Env = append(os.Environ(),
-			fmt.Sprintf("OVERLEAF_URL=%s", c.BaseURL),
-			fmt.Sprintf("OVERLEAF_PROJECT_ID=%s", c.ProjectID),
-			fmt.Sprintf("OVERLEAF_COOKIE=%s", c.Cookie),
-		)
-
-		out, err := cmd.Output()
-		if err == nil {
-			var discovery struct {
-				RootID   string                  `json:"RootID"`
-				Entities map[string]RemoteEntity `json:"Entities"`
-			}
-			if err := json.Unmarshal(out, &discovery); err == nil {
-				em.RootID = discovery.RootID
-				em.Entities = discovery.Entities
-				for path, info := range em.Entities {
-					if info.Type == EntityFolder {
-						em.Folders[path] = info.ID
-					}
-				}
-				fmt.Println("Successfully discovered entities via custom command")
-				return em, nil
-			}
-		} else {
-			if exitErr, ok := err.(*exec.ExitError); ok {
-				fmt.Printf("Discovery command failed: %s\n", string(exitErr.Stderr))
-			} else {
-				fmt.Printf("Discovery command failed: %v\n", err)
-			}
-		}
-	}
-
-	// Try Internal Websocket Discovery (native fallback)
+	// 1. Try Internal Websocket Discovery (native & most reliable)
 	fmt.Println("Attempting native entity discovery via websocket...")
 	if discovery, err := c.DiscoverEntitiesInternal(); err == nil {
 		em.RootID = discovery.RootID
@@ -114,7 +55,7 @@ func (c *Client) GetEntities() (*EntityMap, error) {
 		fmt.Printf("Native discovery failed: %v\n", err)
 	}
 
-	// Try Docker/MongoDB second
+	// 2. Try Docker/MongoDB (useful for local self-hosted)
 	cmdStr := fmt.Sprintf("JSON.stringify(db.projects.findOne({_id: ObjectId('%s')}, {rootFolder: 1}).rootFolder)", c.ProjectID)
 	cmd := exec.Command("docker", "exec", "mongo", "mongosh", "sharelatex", "--quiet", "--eval", cmdStr)
 	var out bytes.Buffer
@@ -271,8 +212,8 @@ func (c *Client) parseFlatEntities(entities []map[string]interface{}, em *Entity
 func (c *Client) DiscoverEntitiesInternal() (*EntityMap, error) {
 	// 1. Handshake
 	handshakeURL := fmt.Sprintf("%s/socket.io/1/?projectId=%s&t=%d", c.BaseURL, c.ProjectID, time.Now().UnixMilli())
-	req, _ := http.NewRequest("POST", handshakeURL, nil)
-	req.Header.Set("Cookie", c.Cookie)
+	req, _ := http.NewRequest("GET", handshakeURL, nil)
+	req.Header.Set("Cookie", fmt.Sprintf("%s=%s", c.CookieName, c.Cookie))
 	resp, err := c.HTTP.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("handshake failed: %w", err)
