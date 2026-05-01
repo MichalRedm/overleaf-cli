@@ -4,7 +4,8 @@
 *.dll
 *.so
 *.dylib
-overleaf-cli
+/overleaf-cli
+/overleaf-cli.exe
 
 # Test binary
 *.test
@@ -25,6 +26,3 @@ go.work.sum
 
 # Configs
 overleaf_config.json
-# Agents
-# .agents/ is allowed for skill publishing
-!/.agents/skills/
