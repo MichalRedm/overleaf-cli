@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
+	"os"
 	"os/exec"
 	"strings"
 )
@@ -60,27 +62,50 @@ func (c *Client) Compile() error {
 }
 
 func (c *Client) ShowLogs() {
-	findCmd := fmt.Sprintf("find /var/lib/overleaf/data/compiles -name 'output.log' | grep %s | xargs ls -t | head -n 1", c.ProjectID)
-	cmd := exec.Command("docker", "exec", "sharelatex", "sh", "-c", findCmd)
-	out, err := cmd.Output()
-	if err != nil {
-		fmt.Printf("Failed to find logs via Docker: %v\n", err)
-		return
+	var logOut []byte
+
+	if c.UseDocker {
+		findCmd := fmt.Sprintf("find /var/lib/overleaf/data/compiles -name 'output.log' | grep %s | xargs ls -t | head -n 1", c.ProjectID)
+		cmd := exec.Command("docker", "exec", "sharelatex", "sh", "-c", findCmd)
+		out, err := cmd.Output()
+		if err != nil {
+			fmt.Printf("Failed to find logs via Docker: %v\n", err)
+			return
+		}
+
+		logPath := strings.TrimSpace(string(out))
+		if logPath == "" {
+			fmt.Println("Could not find log file in container.")
+			return
+		}
+
+		fmt.Printf("Reading logs from container: %s\n", logPath)
+		catCmd := exec.Command("docker", "exec", "sharelatex", "cat", logPath)
+		logOut, err = catCmd.Output()
+		if err != nil {
+			fmt.Printf("Failed to read logs: %v\n", err)
+			return
+		}
+	} else {
+		logURL := fmt.Sprintf("%s/project/%s/output/output.log", c.BaseURL, c.ProjectID)
+		fmt.Printf("Fetching logs from web: %s\n", logURL)
+		resp, err := c.HTTP.Get(logURL)
+		if err != nil {
+			fmt.Printf("Failed to fetch logs from web: %v\n", err)
+			return
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode != 200 {
+			fmt.Printf("Failed to fetch logs from web: status %d\n", resp.StatusCode)
+			return
+		}
+		logOut, err = io.ReadAll(resp.Body)
+		if err != nil {
+			fmt.Printf("Failed to read web logs: %v\n", err)
+			return
+		}
 	}
 
-	logPath := strings.TrimSpace(string(out))
-	if logPath == "" {
-		fmt.Println("Could not find log file in container.")
-		return
-	}
-
-	fmt.Printf("Reading logs from container: %s\n", logPath)
-	catCmd := exec.Command("docker", "exec", "sharelatex", "cat", logPath)
-	logOut, err := catCmd.Output()
-	if err != nil {
-		fmt.Printf("Failed to read logs: %v\n", err)
-		return
-	}
 	lines := strings.Split(string(logOut), "\n")
 
 	fmt.Println("\n--- LaTeX Errors and Warnings ---")
@@ -109,24 +134,41 @@ func (c *Client) ShowLogs() {
 }
 
 func (c *Client) DownloadPDF(outputPath string) error {
-	findCmd := fmt.Sprintf("find /var/lib/overleaf/data/compiles -name 'output.pdf' | grep %s | xargs ls -t | head -n 1", c.ProjectID)
-	cmd := exec.Command("docker", "exec", "sharelatex", "sh", "-c", findCmd)
-	out, err := cmd.Output()
-	if err != nil {
-		return fmt.Errorf("failed to find PDF via Docker: %v", err)
-	}
+	if c.UseDocker {
+		findCmd := fmt.Sprintf("find /var/lib/overleaf/data/compiles -name 'output.pdf' | grep %s | xargs ls -t | head -n 1", c.ProjectID)
+		cmd := exec.Command("docker", "exec", "sharelatex", "sh", "-c", findCmd)
+		out, err := cmd.Output()
+		if err != nil {
+			return fmt.Errorf("failed to find PDF via Docker: %v", err)
+		}
 
-	pdfPath := strings.TrimSpace(string(out))
-	if pdfPath == "" {
-		return fmt.Errorf("could not find PDF file in container. Did it compile successfully?")
-	}
+		pdfPath := strings.TrimSpace(string(out))
+		if pdfPath == "" {
+			return fmt.Errorf("could not find PDF file in container. Did it compile successfully?")
+		}
 
-	fmt.Printf("Downloading PDF from container: %s to %s\n", pdfPath, outputPath)
-	cpCmd := exec.Command("docker", "cp", fmt.Sprintf("sharelatex:%s", pdfPath), outputPath)
-	if err := cpCmd.Run(); err != nil {
-		return fmt.Errorf("failed to copy PDF: %v", err)
-	}
+		fmt.Printf("Downloading PDF from container: %s to %s\n", pdfPath, outputPath)
+		cpCmd := exec.Command("docker", "cp", fmt.Sprintf("sharelatex:%s", pdfPath), outputPath)
+		return cpCmd.Run()
+	} else {
+		pdfURL := fmt.Sprintf("%s/project/%s/output/output.pdf", c.BaseURL, c.ProjectID)
+		fmt.Printf("Downloading PDF from web: %s to %s\n", pdfURL, outputPath)
+		resp, err := c.HTTP.Get(pdfURL)
+		if err != nil {
+			return err
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode != 200 {
+			return fmt.Errorf("failed to download PDF from web: status %d", resp.StatusCode)
+		}
 
-	fmt.Printf("Successfully saved PDF to %s\n", outputPath)
-	return nil
+		outFile, err := os.Create(outputPath)
+		if err != nil {
+			return err
+		}
+		defer outFile.Close()
+
+		_, err = io.Copy(outFile, resp.Body)
+		return err
+	}
 }

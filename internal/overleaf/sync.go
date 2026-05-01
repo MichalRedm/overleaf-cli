@@ -16,7 +16,7 @@ import (
 
 func (c *Client) GetOrCreateFolder(path string, rootID string, em *EntityMap) (string, error) {
 	path = strings.Trim(strings.ReplaceAll(path, "\\", "/"), "/")
-	if path == "" {
+	if path == "" || path == "." {
 		return rootID, nil
 	}
 
