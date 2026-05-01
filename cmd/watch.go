@@ -42,7 +42,7 @@ var watchCmd = &cobra.Command{
 		
 		// Helper to re-add directories to watch
 		addDirs := func(root string) {
-			filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
+			if err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
 				if err == nil && info.IsDir() {
 					if !strings.HasPrefix(filepath.Base(path), ".") {
 						if err := watcher.Add(path); err != nil {
@@ -51,7 +51,9 @@ var watchCmd = &cobra.Command{
 					}
 				}
 				return nil
-			})
+			}); err != nil {
+				fmt.Printf("Warning: error walking directory %s: %v\n", root, err)
+			}
 		}
 
 		addDirs(src)
@@ -80,7 +82,9 @@ var watchCmd = &cobra.Command{
 					if event.Op&fsnotify.Create == fsnotify.Create {
 						info, err := os.Stat(event.Name)
 						if err == nil && info.IsDir() {
-							watcher.Add(event.Name)
+							if err := watcher.Add(event.Name); err != nil {
+								fmt.Printf("Warning: failed to watch new directory %s: %v\n", event.Name, err)
+							}
 						}
 					}
 
@@ -123,9 +127,9 @@ func push(client *overleaf.Client, src string, deleteRemote bool, configRootID s
 	}
 
 	localEntities := make(map[string]bool)
-	filepath.Walk(src, func(path string, info os.FileInfo, err error) error {
+	if err := filepath.Walk(src, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
-			return nil
+			return err
 		}
 		if path == src {
 			return nil
@@ -133,7 +137,11 @@ func push(client *overleaf.Client, src string, deleteRemote bool, configRootID s
 		relPath, _ := filepath.Rel(src, path)
 		relPath = filepath.ToSlash(relPath)
 		if strings.HasPrefix(filepath.Base(path), ".") {
-			if info, _ := os.Stat(path); info.IsDir() {
+			info, err := os.Stat(path)
+			if err != nil {
+				return err
+			}
+			if info.IsDir() {
 				return filepath.SkipDir
 			}
 			return nil
@@ -145,11 +153,12 @@ func push(client *overleaf.Client, src string, deleteRemote bool, configRootID s
 			}
 		}
 		return nil
-	})
+	}); err != nil {
+		fmt.Printf("Error walking local directory for push: %v\n", err)
+	}
 
 	if deleteRemote {
-		// Pruning logic same as in pushCmd...
-		// (Skipped for brevity in this initial implementation, but should be here)
+		fmt.Println("Warning: pruning is not yet implemented in watch mode.")
 	}
 }
 
