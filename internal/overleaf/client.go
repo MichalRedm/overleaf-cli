@@ -21,13 +21,12 @@ type Client struct {
 	AuthCommand string
 	Cookie      string
 	CookieName  string
-	DiscoveryCommand string
 	UseDocker   bool
 	HTTP       *http.Client
 	CSRF       string
 }
 
-func NewClient(baseURL, projectID, cookie, authType, authCommand, discoveryCommand string, useDocker bool) (*Client, error) {
+func NewClient(baseURL, projectID, cookie, authType, authCommand string, useDocker bool) (*Client, error) {
 	jar, err := cookiejar.New(nil)
 	if err != nil {
 		return nil, err
@@ -53,7 +52,6 @@ func NewClient(baseURL, projectID, cookie, authType, authCommand, discoveryComma
 		ProjectID:   projectID,
 		AuthType:    authType,
 		AuthCommand:      authCommand,
-		DiscoveryCommand: discoveryCommand,
 		UseDocker:        useDocker,
 		Cookie:      cookie,
 		CookieName:  "overleaf.sid", // Default

@@ -13,7 +13,6 @@ type Config struct {
 	Email        string `json:"email,omitempty"`
 	Password     string `json:"password,omitempty"`
 	AuthCommand  string `json:"auth_command,omitempty"`
-	DiscoveryCommand string `json:"discovery_command,omitempty"`
 	UseDocker     bool   `json:"use_docker,omitempty"`
 	RootFolderID  string `json:"root_folder_id,omitempty"`
 }

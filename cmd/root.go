@@ -34,7 +34,7 @@ func getClient(cmd *cobra.Command) (*overleaf.Client, *config.Config) {
 		return nil, nil
 	}
 
-	client, err := overleaf.NewClient(cfg.BaseURL, cfg.ProjectID, cfg.Cookie, cfg.AuthType, cfg.AuthCommand, cfg.DiscoveryCommand, cfg.UseDocker)
+	client, err := overleaf.NewClient(cfg.BaseURL, cfg.ProjectID, cfg.Cookie, cfg.AuthType, cfg.AuthCommand, cfg.UseDocker)
 	if err != nil {
 		fmt.Printf("Error creating client: %v\n", err)
 		return nil, nil
