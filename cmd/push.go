@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"overleaf-cli/internal/overleaf"
 
@@ -66,16 +67,11 @@ var pushCmd = &cobra.Command{
 			localEntities[relPath] = true
 
 			if !info.IsDir() {
-				if ent, ok := em.Entities[relPath]; ok {
-					if ent.Type != overleaf.EntityFolder {
-						if err := client.DeleteEntity(ent.ID, ent.Type); err != nil {
-							fmt.Printf("Warning: failed to delete existing entity %s: %v\n", relPath, err)
-						}
-					}
-				}
 				if err := client.UploadFile(path, relPath, rootID, em); err != nil {
 					fmt.Printf("Error uploading %s: %v\n", relPath, err)
 				}
+				// Add a small delay between uploads to avoid hitting rate limits
+				time.Sleep(500 * time.Millisecond)
 			}
 			return nil
 		})
