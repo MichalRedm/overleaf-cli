@@ -6,33 +6,31 @@ Overleaf CLI is a robust, single-binary utility designed to synchronize local di
 
 - **Bidirectional-ish Sync**: Authoritative local-to-remote mirroring (`push`) with optional remote orphan deletion.
 - **Fast & Reliable**: Written in Go for high performance and minimal footprint.
+- **Automatic Auth**: Log in once and let the tool manage your session cookies.
 - **Docker Integration**: Directly queries MongoDB and accesses logs/PDFs via Docker for maximum reliability in self-hosted environments.
 - **Background Watch Mode**: Automatically sync changes as you save them locally.
 - **Project Lifecycle Management**: Create and delete projects via CLI (powered by Playwright).
 - **Log Streaming**: Tail LaTeX compilation logs directly in your terminal.
 
-## Installation
+## 🚀 Quick Start
 
-### Prerequisites
-- **Docker**: The tool interacts with the `sharelatex` and `mongo` containers.
-- **Node/npx**: (Optional) Required for project creation/deletion.
+### Installation
 
-### Download
-Download the latest binary for your OS from the [Releases](https://github.com/mizhal/overleaf-cli/releases) page.
+**Download Binary:**
+Download the latest binary for your platform from the [Releases](https://github.com/MichalRedm/overleaf-cli/releases) page.
 
-### Build from Source
+**From Source (requires Go):**
 ```bash
-go mod download
-go build -o overleaf-cli
+go install github.com/MichalRedm/overleaf-cli@latest
 ```
 
-## Quick Start
+### Configuration
 
-1. **Initialize Configuration**:
+1. **Initialize your project**:
    ```bash
    overleaf-cli init
    ```
-   This will prompt for your Overleaf URL, session cookie (`overleaf.sid`), and Project ID.
+   This will create an `overleaf_config.json` file. Provide your Overleaf URL, credentials (email/password), and Project ID.
 
 2. **Sync Local Files**:
    ```bash
@@ -63,18 +61,11 @@ go build -o overleaf-cli
 | `project create` | Create a new project in Overleaf. |
 | `project rm` | Permanently delete a project. |
 
-## Configuration
+## Prerequisites
 
-The tool uses `overleaf_config.json` (default) which looks like this:
-
-```json
-{
-    "base_url": "http://localhost:80",
-    "project_id": "644f...",
-    "cookie": "s%3A...",
-    "root_folder_id": "644f..."
-}
-```
+- **Docker**: The tool interacts with the `sharelatex` and `mongo` containers.
+- **Node/npx**: (Optional) Required for project creation/deletion.
 
 ## License
+
 MIT
