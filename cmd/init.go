@@ -29,7 +29,7 @@ var initCmd = &cobra.Command{
 		}
 		baseURL = strings.TrimSpace(baseURL)
 
-		fmt.Print("Enter overleaf.sid cookie value (optional, press enter to skip and use email/pass): ")
+		fmt.Print("Enter session cookie value (overleaf.sid/sharelatex.sid) (optional, press enter to skip): ")
 		cookie, err := reader.ReadString('\n')
 		if err != nil {
 			fmt.Printf("Error reading input: %v\n", err)
@@ -53,6 +53,25 @@ var initCmd = &cobra.Command{
 		}
 		password = strings.TrimSpace(password)
 
+		fmt.Print("Enter Authentication Type (standard/custom) [default: standard]: ")
+		authType, _ := reader.ReadString('\n')
+		authType = strings.TrimSpace(authType)
+		if authType == "" {
+			authType = "standard"
+		}
+
+		var authCommand string
+		if authType == "custom" {
+			fmt.Print("Enter Custom Authentication Command (e.g. 'python auth.py'): ")
+			authCommand, _ = reader.ReadString('\n')
+			authCommand = strings.TrimSpace(authCommand)
+		}
+
+
+		fmt.Print("Is this a local Overleaf instance with Docker access? (y/n) [default: n]: ")
+		useDockerStr, _ := reader.ReadString('\n')
+		useDocker := strings.ToLower(strings.TrimSpace(useDockerStr)) == "y"
+
 		fmt.Print("Enter Project ID (optional, leave blank if unknown): ")
 		projectID, err := reader.ReadString('\n')
 		if err != nil {
@@ -64,6 +83,9 @@ var initCmd = &cobra.Command{
 		cfg := &config.Config{
 			BaseURL:   baseURL,
 			ProjectID: projectID,
+			AuthType:    authType,
+			AuthCommand: authCommand,
+			UseDocker:   useDocker,
 			Cookie:    cookie,
 			Email:     email,
 			Password:  password,

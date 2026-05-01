@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
+	"os"
+	"os/exec"
 	"regexp"
 	"strings"
 
@@ -13,14 +15,19 @@ import (
 )
 
 type Client struct {
-	BaseURL   string
-	ProjectID string
-	Cookie    string
-	HTTP      *http.Client
-	CSRF      string
+	BaseURL    string
+	ProjectID  string
+	AuthType    string
+	AuthCommand string
+	Cookie      string
+	CookieName  string
+	DiscoveryCommand string
+	UseDocker   bool
+	HTTP       *http.Client
+	CSRF       string
 }
 
-func NewClient(baseURL, projectID, cookie string) (*Client, error) {
+func NewClient(baseURL, projectID, cookie, authType, authCommand, discoveryCommand string, useDocker bool) (*Client, error) {
 	jar, err := cookiejar.New(nil)
 	if err != nil {
 		return nil, err
@@ -30,25 +37,41 @@ func NewClient(baseURL, projectID, cookie string) (*Client, error) {
 		return nil, err
 	}
 
-	jar.SetCookies(u, []*http.Cookie{
-		{
-			Name:  "overleaf.sid",
-			Value: cookie,
-		},
-	})
+	// Try both common cookie names
+	cookieNames := []string{"overleaf.sid", "sharelatex.sid"}
+	for _, name := range cookieNames {
+		jar.SetCookies(u, []*http.Cookie{
+			{
+				Name:  name,
+				Value: cookie,
+			},
+		})
+	}
 
 	client := &Client{
-		BaseURL:   strings.TrimSuffix(baseURL, "/"),
-		ProjectID: projectID,
-		Cookie:    cookie,
+		BaseURL:     strings.TrimSuffix(baseURL, "/"),
+		ProjectID:   projectID,
+		AuthType:    authType,
+		AuthCommand:      authCommand,
+		DiscoveryCommand: discoveryCommand,
+		UseDocker:        useDocker,
+		Cookie:      cookie,
+		CookieName:  "overleaf.sid", // Default
 		HTTP: &http.Client{
 			Jar: jar,
 		},
 	}
+	
+	// Add a standard User-Agent
+	client.HTTP.Transport = &uaRoundTripper{
+		rt: http.DefaultTransport,
+		ua: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+	}
 
 	if projectID != "" {
 		if err := client.RefreshCSRF(); err != nil {
-			return nil, err
+			// If we fail here, maybe we are not logged in yet, which is fine if we intend to login
+			// But we'll try to find the correct cookie name first
 		}
 	}
 
@@ -111,11 +134,26 @@ func (c *Client) IsAuthenticated() bool {
 		return false
 	}
 	defer resp.Body.Close()
+	
+	// If we were redirected to a login page, we are not authenticated
+	if strings.Contains(resp.Request.URL.Path, "/login") {
+		return false
+	}
+	
 	return resp.StatusCode == 200
 }
 
 func (c *Client) Login(email, password string) error {
-	fmt.Printf("Attempting login to %s as %s...\n", c.BaseURL, email)
+	switch c.AuthType {
+	case "custom":
+		return c.loginCustom(email, password)
+	default:
+		return c.loginStandard(email, password)
+	}
+}
+
+func (c *Client) loginStandard(email, password string) error {
+	fmt.Printf("Attempting standard login to %s as %s...\n", c.BaseURL, email)
 
 	// 1. Get Login Page for initial CSRF
 	loginURL := fmt.Sprintf("%s/login", c.BaseURL)
@@ -168,19 +206,80 @@ func (c *Client) Login(email, password string) error {
 		return fmt.Errorf("login failed: expected 302 redirect, got %d", resp.StatusCode)
 	}
 
-	// Capture new cookie
+	return c.captureSessionCookie()
+}
+
+func (c *Client) loginCustom(email, password string) error {
+	if c.AuthCommand == "" {
+		return fmt.Errorf("auth_type is 'custom' but auth_command is not specified")
+	}
+
+	fmt.Printf("Running custom authentication command: %s\n", c.AuthCommand)
+
+	cmd := exec.Command("sh", "-c", c.AuthCommand)
+	if strings.Contains(strings.ToLower(os.Getenv("OS")), "windows") {
+		cmd = exec.Command("cmd", "/C", c.AuthCommand)
+	}
+
+	cmd.Env = append(os.Environ(),
+		fmt.Sprintf("OVERLEAF_EMAIL=%s", email),
+		fmt.Sprintf("OVERLEAF_PASSWORD=%s", password),
+		fmt.Sprintf("OVERLEAF_URL=%s", c.BaseURL),
+	)
+
+	out, err := cmd.Output()
+	if err != nil {
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			return fmt.Errorf("custom auth command failed with status %d: %s", exitErr.ExitCode(), string(exitErr.Stderr))
+		}
+		return fmt.Errorf("failed to run custom auth command: %v", err)
+	}
+
+	cookieValue := strings.TrimSpace(string(out))
+	if cookieValue == "" {
+		return fmt.Errorf("custom auth command returned empty cookie")
+	}
+
+	// Set the cookie in the jar for both common names
+	u, _ := url.Parse(c.BaseURL)
+	c.HTTP.Jar.SetCookies(u, []*http.Cookie{
+		{Name: "overleaf.sid", Value: cookieValue},
+		{Name: "sharelatex.sid", Value: cookieValue},
+	})
+
+	c.Cookie = cookieValue
+	// Try to find which one works by refreshing CSRF
+	return c.captureSessionCookie()
+}
+
+func (c *Client) captureSessionCookie() error {
 	u, err := url.Parse(c.BaseURL)
 	if err != nil {
 		return err
 	}
 	cookies := c.HTTP.Jar.Cookies(u)
+	cookieNames := []string{"overleaf.sid", "sharelatex.sid"}
+	
 	for _, cookie := range cookies {
-		if cookie.Name == "overleaf.sid" {
-			c.Cookie = cookie.Value
-			fmt.Println("Successfully logged in and updated session cookie.")
-			return c.RefreshCSRF()
+		for _, name := range cookieNames {
+			if cookie.Name == name {
+				c.Cookie = cookie.Value
+				c.CookieName = name
+				fmt.Printf("Successfully captured session cookie: %s\n", name)
+				return c.RefreshCSRF()
+			}
 		}
 	}
 
-	return fmt.Errorf("login succeeded but overleaf.sid cookie not found")
+	return fmt.Errorf("login succeeded but session cookie (overleaf.sid/sharelatex.sid) not found")
+}
+
+type uaRoundTripper struct {
+	rt http.RoundTripper
+	ua string
+}
+
+func (t *uaRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	req.Header.Set("User-Agent", t.ua)
+	return t.rt.RoundTrip(req)
 }

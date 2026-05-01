@@ -8,10 +8,14 @@ import (
 type Config struct {
 	BaseURL      string `json:"base_url"`
 	ProjectID    string `json:"project_id"`
+	AuthType     string `json:"auth_type,omitempty"`
 	Cookie       string `json:"cookie,omitempty"`
 	Email        string `json:"email,omitempty"`
 	Password     string `json:"password,omitempty"`
-	RootFolderID string `json:"root_folder_id,omitempty"`
+	AuthCommand  string `json:"auth_command,omitempty"`
+	DiscoveryCommand string `json:"discovery_command,omitempty"`
+	UseDocker     bool   `json:"use_docker,omitempty"`
+	RootFolderID  string `json:"root_folder_id,omitempty"`
 }
 
 func Load(path string) (*Config, error) {

@@ -18,7 +18,7 @@ async (page) => {
     await page.goto('%s/project');
     
     await page.context().addCookies([{
-        "name": "overleaf.sid",
+        "name": "%s",
         "value": "%s",
         "domain": "%s",
         "path": "/"
@@ -33,7 +33,7 @@ async (page) => {
     await page.waitForURL(/\/project\/[a-f0-9]+/);
     return page.url().split('/').pop();
 }
-`, name, c.BaseURL, c.Cookie, domain)
+`, name, c.BaseURL, c.CookieName, c.Cookie, domain)
 
 	tempJS := filepath.Join(os.TempDir(), fmt.Sprintf("create_project_%s.js", uuid.New().String()))
 	if err := os.WriteFile(tempJS, []byte(jsCode), 0644); err != nil {
@@ -74,7 +74,7 @@ async (page) => {
     await page.goto('%s/project');
     
     await page.context().addCookies([{
-        "name": "overleaf.sid",
+        "name": "%s",
         "value": "%s",
         "domain": "%s",
         "path": "/"
@@ -102,7 +102,7 @@ async (page) => {
     await page.getByRole('button', { name: 'Confirm' }).click();
     return "OK";
 }
-`, pid, c.BaseURL, c.Cookie, domain, c.BaseURL)
+`, pid, c.BaseURL, c.CookieName, c.Cookie, domain, c.BaseURL)
 
 	tempJS := filepath.Join(os.TempDir(), fmt.Sprintf("delete_project_%s.js", uuid.New().String()))
 	if err := os.WriteFile(tempJS, []byte(jsCode), 0644); err != nil {
