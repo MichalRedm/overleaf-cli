@@ -25,4 +25,6 @@ go.work.sum
 
 # Configs
 overleaf_config.json
-.agents/
+# Agents
+# .agents/ is allowed for skill publishing
+!/.agents/skills/
