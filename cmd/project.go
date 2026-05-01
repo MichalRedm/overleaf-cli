@@ -3,8 +3,6 @@ package cmd
 import (
 	"fmt"
 	"overleaf-cli/internal/config"
-	"overleaf-cli/internal/overleaf"
-
 	"github.com/spf13/cobra"
 )
 
@@ -17,20 +15,12 @@ var projectCreateCmd = &cobra.Command{
 	Use:   "create",
 	Short: "Create a new project",
 	Run: func(cmd *cobra.Command, args []string) {
+		client, cfg := getClient(cmd)
+		if client == nil {
+			return
+		}
 		configPath, _ := cmd.Flags().GetString("config")
 		name, _ := cmd.Flags().GetString("name")
-		
-		cfg, err := config.Load(configPath)
-		if err != nil {
-			fmt.Printf("Error loading config: %v\n", err)
-			return
-		}
-
-		client, err := overleaf.NewClient(cfg.BaseURL, cfg.ProjectID, cfg.Cookie)
-		if err != nil {
-			fmt.Printf("Error creating client: %v\n", err)
-			return
-		}
 
 		newID, err := client.CreateProject(name)
 		if err != nil {
@@ -52,21 +42,12 @@ var projectRmCmd = &cobra.Command{
 	Use:   "rm",
 	Short: "Delete a project",
 	Run: func(cmd *cobra.Command, args []string) {
-		configPath, _ := cmd.Flags().GetString("config")
+		client, cfg := getClient(cmd)
+		if client == nil {
+			return
+		}
+
 		id, _ := cmd.Flags().GetString("id")
-		
-		cfg, err := config.Load(configPath)
-		if err != nil {
-			fmt.Printf("Error loading config: %v\n", err)
-			return
-		}
-
-		client, err := overleaf.NewClient(cfg.BaseURL, cfg.ProjectID, cfg.Cookie)
-		if err != nil {
-			fmt.Printf("Error creating client: %v\n", err)
-			return
-		}
-
 		if id == "" {
 			id = cfg.ProjectID
 		}

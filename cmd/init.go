@@ -22,9 +22,17 @@ var initCmd = &cobra.Command{
 		baseURL, _ := reader.ReadString('\n')
 		baseURL = strings.TrimSpace(baseURL)
 
-		fmt.Print("Enter overleaf.sid cookie value: ")
+		fmt.Print("Enter overleaf.sid cookie value (optional, press enter to skip and use email/pass): ")
 		cookie, _ := reader.ReadString('\n')
 		cookie = strings.TrimSpace(cookie)
+
+		fmt.Print("Enter Email: ")
+		email, _ := reader.ReadString('\n')
+		email = strings.TrimSpace(email)
+
+		fmt.Print("Enter Password: ")
+		password, _ := reader.ReadString('\n')
+		password = strings.TrimSpace(password)
 
 		fmt.Print("Enter Project ID (optional, leave blank if unknown): ")
 		projectID, _ := reader.ReadString('\n')
@@ -34,6 +42,8 @@ var initCmd = &cobra.Command{
 			BaseURL:   baseURL,
 			ProjectID: projectID,
 			Cookie:    cookie,
+			Email:     email,
+			Password:  password,
 		}
 
 		if err := config.Save(configPath, cfg); err != nil {

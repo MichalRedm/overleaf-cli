@@ -8,7 +8,9 @@ import (
 type Config struct {
 	BaseURL      string `json:"base_url"`
 	ProjectID    string `json:"project_id"`
-	Cookie       string `json:"cookie"`
+	Cookie       string `json:"cookie,omitempty"`
+	Email        string `json:"email,omitempty"`
+	Password     string `json:"password,omitempty"`
 	RootFolderID string `json:"root_folder_id,omitempty"`
 }
 

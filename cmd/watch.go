@@ -8,7 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"overleaf-cli/internal/config"
 	"overleaf-cli/internal/overleaf"
 
 	"github.com/fsnotify/fsnotify"
@@ -19,21 +18,13 @@ var watchCmd = &cobra.Command{
 	Use:   "watch",
 	Short: "Watch for local changes and sync automatically",
 	Run: func(cmd *cobra.Command, args []string) {
-		configPath, _ := cmd.Flags().GetString("config")
+		client, cfg := getClient(cmd)
+		if client == nil {
+			return
+		}
+
 		src, _ := cmd.Flags().GetString("src")
 		deleteRemote, _ := cmd.Flags().GetBool("delete")
-
-		cfg, err := config.Load(configPath)
-		if err != nil {
-			fmt.Printf("Error loading config: %v\n", err)
-			return
-		}
-
-		client, err := overleaf.NewClient(cfg.BaseURL, cfg.ProjectID, cfg.Cookie)
-		if err != nil {
-			fmt.Printf("Error creating client: %v\n", err)
-			return
-		}
 
 		watcher, err := fsnotify.NewWatcher()
 		if err != nil {
