@@ -39,12 +39,14 @@ overleaf-cli install
    ```bash
    overleaf-cli init
    ```
-   This will create an `overleaf_config.json` file. Provide your Overleaf URL, credentials (email/password), and Project ID.
+   This will create a `.overleaf/` directory containing `config.json`. Provide your Overleaf URL, credentials (email/password), and Project ID.
+   *(Legacy `overleaf_config.json` will be automatically migrated to `.overleaf/config.json` on the first run).*
 
-2. **Sync Local Files**:
+2. **Sync Local Files (Incremental)**:
    ```bash
    overleaf-cli push --src ./my-project --delete
    ```
+   By default, the CLI uses a local state tracker (`.overleaf/state.json`) to only upload files that have actually changed. Use `--force` to re-upload everything.
 
 3. **Start Watch Mode**:
    ```bash
@@ -86,8 +88,8 @@ The CLI supports two distinct operational modes based on your `overleaf_config.j
 | Command | Description |
 | :--- | :--- |
 | `install` | Add the current binary's directory to the system PATH. |
-| `init` | Interactive setup for `overleaf_config.json`. |
-| `push` | Upload local files to the Overleaf project. Use `--delete` to prune remote orphans. |
+| `init` | Interactive setup for `.overleaf/config.json`. |
+| `push` | Incremental upload of local files to the Overleaf project. Use `--delete` to prune remote orphans, `--force` to bypass state tracking. |
 | `watch` | Watch the local directory and push changes immediately on save. |
 | `compile` | Trigger a LaTeX compilation on the server. |
 | `logs` | Retrieve and display LaTeX errors/warnings from the container. |
