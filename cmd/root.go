@@ -25,8 +25,8 @@ func Execute() {
 
 func getClient(cmd *cobra.Command) (*overleaf.Client, *config.Config) {
 	configPath, err := cmd.Flags().GetString("config")
-	if err != nil {
-		configPath = "overleaf_config.json"
+	if err != nil || configPath == config.LegacyConfigFile {
+		configPath = config.GetConfigPath()
 	}
 	cfg, err := config.Load(configPath)
 	if err != nil {
@@ -65,5 +65,5 @@ func getClient(cmd *cobra.Command) (*overleaf.Client, *config.Config) {
 
 func init() {
 	// Global flags can be defined here
-	rootCmd.PersistentFlags().StringP("config", "c", "overleaf_config.json", "path to config file")
+	rootCmd.PersistentFlags().StringP("config", "c", config.GetConfigPath(), "path to config file")
 }

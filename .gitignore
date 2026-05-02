@@ -26,3 +26,4 @@ go.work.sum
 
 # Configs
 overleaf_config.json
+.overleaf/
