@@ -10,7 +10,7 @@ This skill allows the agent to synchronize a local project directory with an Ove
 ## Prerequisites
 
 - **Binary**: `overleaf-cli` must be installed in the system PATH.
-- **Configuration**: A `.overleaf/config.json` file in the project root or specified via `--config`.
+- **Configuration**: A `.overleaf/config.json` file. It is automatically detected if it resides in the current directory or relative to the `--src` path.
 - **Incremental Sync**: Uses `.overleaf/state.json` to track local file hashes and minimize network traffic.
 - **Hybrid Mode**: Supports both Docker-based (local) and Web API-based (remote) synchronization.
 
@@ -83,7 +83,15 @@ On instances where the standard REST API is restricted (e.g., returns paths with
 - **Native Websocket**: The CLI automatically establishes a Socket.io connection to fetch the project tree directly from the server. This is the most reliable method for non-standard university instances.
 
 ## Best Practices
-- **Auto-Login**: Provide `email` and `password` in the config for seamless session management. The CLI will cache the session cookie in the config file.
+- **Auto-Login**: Provide `email` and `password` in the config for seamless session management. Custom authentication flows will also trigger auto-login if the session expires.
 - **Git Hygiene**: Add `.overleaf/` to your `.gitignore` to prevent leaking credentials and local state.
 - **Troubleshooting Sync**: If files are not uploading as expected, use the `--force` flag to reset the synchronization state.
 - **Docker vs Web API**: Set `use_docker: true` only if you have direct access to the `sharelatex` Docker container. Otherwise, set to `false` to use the standard Web API.
+
+## Troubleshooting
+
+- **"Failed to retrieve entities"**: This usually means the binary is outdated or the session is invalid.
+    1. **Update Binary**: Run `go install` from the `overleaf-cli` source directory to ensure you have the latest native websocket discovery fixes.
+    2. **Check Auth**: Verify your custom auth script (if used) outputs a valid cookie.
+    3. **Clear Cache**: Remove the `cookie` value from `.overleaf/config.json` to force a fresh login.
+- **Stale State**: If the remote and local state are out of sync, delete `.overleaf/state.json` and run `push --force`.
