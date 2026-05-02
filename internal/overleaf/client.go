@@ -27,7 +27,6 @@ type Client struct {
 	HTTP       *http.Client
 	CSRF       string
 }
-
 func NewClient(baseURL, projectID, cookie, authType, authCommand string, useDocker bool) (*Client, error) {
 	jar, err := cookiejar.New(nil)
 	if err != nil {
@@ -38,25 +37,15 @@ func NewClient(baseURL, projectID, cookie, authType, authCommand string, useDock
 		return nil, err
 	}
 
-	// Try both common cookie names
 	cookieNames := []string{"overleaf.sid", "sharelatex.sid"}
-	for _, name := range cookieNames {
-		jar.SetCookies(u, []*http.Cookie{
-			{
-				Name:  name,
-				Value: cookie,
-			},
-		})
-	}
 
 	client := &Client{
 		BaseURL:     strings.TrimSuffix(baseURL, "/"),
 		ProjectID:   projectID,
 		AuthType:    authType,
-		AuthCommand:      authCommand,
-		UseDocker:        useDocker,
+		AuthCommand: authCommand,
+		UseDocker:   useDocker,
 		Cookie:      cookie,
-		CookieName:  "overleaf.sid", // Default
 		HTTP: &http.Client{
 			Jar: jar,
 		},
@@ -68,10 +57,29 @@ func NewClient(baseURL, projectID, cookie, authType, authCommand string, useDock
 		ua: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
 	}
 
-	if projectID != "" {
+	if projectID != "" && cookie != "" {
+		// Auto-detect cookie name
+		success := false
+		for _, name := range cookieNames {
+			// Clear jar and set only this cookie
+			newJar, _ := cookiejar.New(nil)
+			newJar.SetCookies(u, []*http.Cookie{{Name: name, Value: cookie}})
+			client.HTTP.Jar = newJar
+			client.CookieName = name
+			
+			if err := client.RefreshCSRF(); err == nil {
+				fmt.Printf("Auto-detected cookie name: %s\n", name)
+				success = true
+				break
+			}
+		}
+		if !success {
+			fmt.Printf("Warning: Failed to auto-detect cookie name or cookie is invalid.\n")
+			// Default back to sharelatex.sid for university instances if detection fails
+			client.CookieName = "sharelatex.sid"
+		}
+	} else if projectID != "" {
 		if err := client.RefreshCSRF(); err != nil {
-			// If we fail here, maybe we are not logged in yet, which is fine if we intend to login
-			// but we'll log it as a warning
 			fmt.Printf("Initial CSRF refresh failed: %v\n", err)
 		}
 	}
