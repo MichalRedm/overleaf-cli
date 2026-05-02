@@ -81,7 +81,8 @@ func NewClient(baseURL, projectID, cookie, authType, authCommand string, useDock
 
 func (c *Client) RefreshCSRF() error {
 	projectURL := fmt.Sprintf("%s/project/%s", c.BaseURL, c.ProjectID)
-	resp, err := c.HTTP.Get(projectURL)
+	req, _ := http.NewRequest("GET", projectURL, nil)
+	resp, err := c.DoWithRetry(req)
 	if err != nil {
 		return err
 	}
@@ -130,7 +131,8 @@ func (c *Client) RefreshCSRF() error {
 func (c *Client) IsAuthenticated() bool {
 	// Simple check: can we access the project page?
 	projectURL := fmt.Sprintf("%s/project/%s", c.BaseURL, c.ProjectID)
-	resp, err := c.HTTP.Get(projectURL)
+	req, _ := http.NewRequest("GET", projectURL, nil)
+	resp, err := c.DoWithRetry(req)
 	if err != nil {
 		return false
 	}

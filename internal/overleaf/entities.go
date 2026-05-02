@@ -72,9 +72,30 @@ func (c *Client) GetEntities() (*EntityMap, error) {
 		}
 	}
 
-	// Fallback to Web API
+	// Fallback 1: Metadata API (often more reliable)
+	fmt.Println("Attempting discovery via metadata API...")
+	metadataURL := fmt.Sprintf("%s/project/%s/metadata", c.BaseURL, c.ProjectID)
+	mReq, _ := http.NewRequest("GET", metadataURL, nil)
+	mResp, err := c.DoWithRetry(mReq)
+	if err == nil {
+		defer mResp.Body.Close()
+		if mResp.StatusCode == 200 {
+			var metadata map[string]interface{}
+			if err := json.NewDecoder(mResp.Body).Decode(&metadata); err == nil {
+				if rootFolder, ok := metadata["rootFolder"].(map[string]interface{}); ok {
+					c.parseRecursiveFolder(rootFolder, "", em)
+					fmt.Println("Successfully discovered entities via metadata API")
+					return em, nil
+				}
+			}
+		}
+	}
+
+	// Fallback 2: Legacy Web API
+	fmt.Println("Attempting discovery via legacy entities API...")
 	apiURL := fmt.Sprintf("%s/project/%s/entities", c.BaseURL, c.ProjectID)
-	resp, err := c.HTTP.Get(apiURL)
+	req, _ := http.NewRequest("GET", apiURL, nil)
+	resp, err := c.DoWithRetry(req)
 	if err != nil {
 		return nil, err
 	}
@@ -86,11 +107,12 @@ func (c *Client) GetEntities() (*EntityMap, error) {
 		}
 		if err := json.NewDecoder(resp.Body).Decode(&data); err == nil {
 			c.parseFlatEntities(data.Entities, em)
+			fmt.Println("Successfully discovered entities via legacy API")
 			return em, nil
 		}
 	}
 
-	return nil, fmt.Errorf("failed to retrieve entities from both Docker and Web API")
+	return nil, fmt.Errorf("failed to retrieve entities from all sources (Websocket, Docker, Metadata, Entities)")
 }
 
 func (c *Client) parseRecursiveFolder(folder map[string]interface{}, path string, em *EntityMap) {
@@ -213,7 +235,7 @@ func (c *Client) DiscoverEntitiesInternal() (*EntityMap, error) {
 	handshakeURL := fmt.Sprintf("%s/socket.io/1/?projectId=%s&t=%d", c.BaseURL, c.ProjectID, time.Now().UnixMilli())
 	req, _ := http.NewRequest("GET", handshakeURL, nil)
 	req.Header.Set("Cookie", fmt.Sprintf("%s=%s", c.CookieName, c.Cookie))
-	resp, err := c.HTTP.Do(req)
+	resp, err := c.DoWithRetry(req)
 	if err != nil {
 		return nil, fmt.Errorf("handshake failed: %w", err)
 	}
