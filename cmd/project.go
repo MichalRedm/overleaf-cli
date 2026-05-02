@@ -19,10 +19,7 @@ var projectCreateCmd = &cobra.Command{
 		if client == nil {
 			return
 		}
-		configPath, err := cmd.Flags().GetString("config")
-		if err != nil {
-			configPath = "overleaf_config.json"
-		}
+		configPath := resolveConfigPath(cmd)
 		name, err := cmd.Flags().GetString("name")
 		if err != nil {
 			name = "New Project"

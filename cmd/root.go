@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"overleaf-cli/internal/config"
 	"overleaf-cli/internal/overleaf"
@@ -24,13 +25,10 @@ func Execute() {
 }
 
 func getClient(cmd *cobra.Command) (*overleaf.Client, *config.Config) {
-	configPath, err := cmd.Flags().GetString("config")
-	if err != nil || configPath == config.LegacyConfigFile {
-		configPath = config.GetConfigPath()
-	}
+	configPath := resolveConfigPath(cmd)
 	cfg, err := config.Load(configPath)
 	if err != nil {
-		fmt.Printf("Error loading config: %v\n", err)
+		fmt.Printf("Error loading config from %s: %v\n", configPath, err)
 		return nil, nil
 	}
 
@@ -42,7 +40,7 @@ func getClient(cmd *cobra.Command) (*overleaf.Client, *config.Config) {
 
 	// Check if authenticated
 	if !client.IsAuthenticated() {
-		if cfg.Email != "" && cfg.Password != "" {
+		if (cfg.Email != "" && cfg.Password != "") || (cfg.AuthType == "custom" && cfg.AuthCommand != "") {
 			fmt.Println("Session expired or invalid, attempting automatic login...")
 			if err := client.Login(cfg.Email, cfg.Password); err != nil {
 				fmt.Printf("Auto-login failed: %v\n", err)
@@ -54,12 +52,46 @@ func getClient(cmd *cobra.Command) (*overleaf.Client, *config.Config) {
 				fmt.Printf("Warning: failed to save updated cookie to config: %v\n", err)
 			}
 		} else {
-			fmt.Println("Session invalid and no credentials provided in config. Please run 'init' or update config.")
+			fmt.Println("Session invalid and no credentials/custom auth provided in config. Please run 'init' or update config.")
 			return nil, nil
 		}
 	}
 
 	return client, cfg
+}
+
+func resolveConfigPath(cmd *cobra.Command) string {
+	configPath, _ := cmd.Flags().GetString("config")
+
+	// If the config flag was not explicitly set by the user
+	if !cmd.Flags().Changed("config") {
+		// Check if it exists in the current directory
+		if _, err := os.Stat(configPath); os.IsNotExist(err) {
+			// Try relative to --src if it's available
+			srcFlag := cmd.Flags().Lookup("src")
+			if srcFlag != nil {
+				src := srcFlag.Value.String()
+				if src != "" && src != "." {
+					altPath := filepath.Join(src, config.GetConfigPath())
+					if _, err := os.Stat(altPath); err == nil {
+						return altPath
+					}
+					// Also check for legacy config in src
+					legacyAltPath := filepath.Join(src, config.LegacyConfigFile)
+					if _, err := os.Stat(legacyAltPath); err == nil {
+						return legacyAltPath
+					}
+				}
+			}
+			
+			// Check for legacy config in current directory as fallback
+			if _, err := os.Stat(config.LegacyConfigFile); err == nil {
+				return config.LegacyConfigFile
+			}
+		}
+	}
+
+	return configPath
 }
 
 
