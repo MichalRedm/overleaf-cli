@@ -5,6 +5,7 @@ go 1.19
 require (
 	github.com/PuerkitoBio/goquery v1.8.1
 	github.com/fsnotify/fsnotify v1.6.0
+	github.com/gobwas/glob v0.2.3
 	github.com/google/uuid v1.6.0
 	github.com/spf13/cobra v1.6.1
 	golang.org/x/net v0.7.0
