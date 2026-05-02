@@ -11,8 +11,41 @@ import (
 	"overleaf-cli/internal/overleaf"
 	"overleaf-cli/internal/state"
 
+	"github.com/gobwas/glob"
 	"github.com/spf13/cobra"
 )
+
+func loadIgnorePatterns(src string) []glob.Glob {
+	var patterns []glob.Glob
+	ignorePath := filepath.Join(src, ".overleafignore")
+	data, err := os.ReadFile(ignorePath)
+	if err != nil {
+		return patterns
+	}
+
+	lines := strings.Split(string(data), "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		g, err := glob.Compile(line, '/')
+		if err == nil {
+			patterns = append(patterns, g)
+		}
+	}
+	return patterns
+}
+
+func shouldIgnore(path string, patterns []glob.Glob) bool {
+	path = filepath.ToSlash(path)
+	for _, p := range patterns {
+		if p.Match(path) {
+			return true
+		}
+	}
+	return false
+}
 
 var pushCmd = &cobra.Command{
 	Use:   "push",
@@ -58,6 +91,7 @@ var pushCmd = &cobra.Command{
 
 		fmt.Printf("Starting push from %s to root folder %s\n", src, rootID)
 
+		ignorePatterns := loadIgnorePatterns(src)
 		localEntities := make(map[string]bool)
 		uploadedCount := 0
 		skippedCount := 0
@@ -72,6 +106,13 @@ var pushCmd = &cobra.Command{
 
 			// Skip hidden files/dirs except .overleaf (though we should skip it too as it's metadata)
 			if strings.HasPrefix(filepath.Base(path), ".") {
+				if info.IsDir() {
+					return filepath.SkipDir
+				}
+				return nil
+			}
+
+			if shouldIgnore(relPath, ignorePatterns) {
 				if info.IsDir() {
 					return filepath.SkipDir
 				}
