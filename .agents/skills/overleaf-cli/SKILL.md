@@ -10,7 +10,8 @@ This skill allows the agent to synchronize a local project directory with an Ove
 ## Prerequisites
 
 - **Binary**: `overleaf-cli` must be installed in the system PATH.
-- **Configuration**: An `overleaf_config.json` file in the project root or specified via `--config`.
+- **Configuration**: A `.overleaf/config.json` file in the project root or specified via `--config`.
+- **Incremental Sync**: Uses `.overleaf/state.json` to track local file hashes and minimize network traffic.
 - **Hybrid Mode**: Supports both Docker-based (local) and Web API-based (remote) synchronization.
 
 ## Usage
@@ -24,11 +25,15 @@ overleaf-cli install
 ```powershell
 overleaf-cli init
 ```
+*Note: Legacy `overleaf_config.json` files are automatically migrated to `.overleaf/config.json`.*
 
 ### 2. Synchronization
 ```powershell
-# Push local changes to Overleaf
+# Push local changes to Overleaf (Incremental)
 overleaf-cli push --src <local_dir>
+
+# Force re-upload of all files (bypass state tracking)
+overleaf-cli push --src <local_dir> --force
 
 # Mirror local to remote (delete remote orphans)
 overleaf-cli push --src <local_dir> --delete
@@ -79,5 +84,6 @@ On instances where the standard REST API is restricted (e.g., returns paths with
 
 ## Best Practices
 - **Auto-Login**: Provide `email` and `password` in the config for seamless session management. The CLI will cache the session cookie in the config file.
+- **Git Hygiene**: Add `.overleaf/` to your `.gitignore` to prevent leaking credentials and local state.
+- **Troubleshooting Sync**: If files are not uploading as expected, use the `--force` flag to reset the synchronization state.
 - **Docker vs Web API**: Set `use_docker: true` only if you have direct access to the `sharelatex` Docker container. Otherwise, set to `false` to use the standard Web API.
-- **Root Folder**: Use `root_folder_id` in config to sync to a specific subfolder if needed.
