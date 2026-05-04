@@ -10,7 +10,8 @@ This skill allows the agent to synchronize a local project directory with an Ove
 ## Prerequisites
 
 - **Binary**: `overleaf-cli` must be installed in the system PATH.
-- **Configuration**: A `.overleaf/config.json` file. It is automatically detected if it resides in the current directory or relative to the `--src` path.
+- **Zero-Config Root Detection**: The tool automatically detects the project root by searching upwards for a `.overleaf/` directory. This makes the `--src` parameter optional when run from within a project.
+- **Configuration**: A `.overleaf/config.json` file. It is automatically detected if it resides in the current directory, project root, or relative to the `--src` path.
 - **Incremental Sync**: Uses `.overleaf/state.json` to track local file hashes and minimize network traffic.
 - **Hybrid Mode**: Supports both Docker-based (local) and Web API-based (remote) synchronization.
 
@@ -30,19 +31,24 @@ overleaf-cli init
 ### 2. Synchronization
 ```powershell
 # Push local changes to Overleaf (Incremental)
-overleaf-cli push --src <local_dir>
+# --src is optional if run within a project folder
+overleaf-cli push
 
 # Force re-upload of all files (bypass state tracking)
-overleaf-cli push --src <local_dir> --force
+overleaf-cli push --force
 
 # Mirror local to remote (delete remote orphans)
-overleaf-cli push --src <local_dir> --delete
+overleaf-cli push --delete
+
+# Explicitly specify source directory
+overleaf-cli push --src <local_dir>
 ```
 
 ### 3. Background Watch
 ```powershell
 # Automatically sync on file save
-overleaf-cli watch --src <local_dir> --delete
+# --src is optional if run within a project folder
+overleaf-cli watch --delete
 ```
 
 ### 4. Compilation & PDF
