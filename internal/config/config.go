@@ -65,3 +65,26 @@ func Save(path string, cfg *Config) error {
 	}
 	return os.WriteFile(path, data, 0644)
 }
+
+// FindProjectRoot searches upwards from startPath for a directory containing .overleaf
+func FindProjectRoot(startPath string) (string, error) {
+	absPath, err := filepath.Abs(startPath)
+	if err != nil {
+		return "", err
+	}
+
+	current := absPath
+	for {
+		if _, err := os.Stat(filepath.Join(current, MetadataDir)); err == nil {
+			return current, nil
+		}
+
+		parent := filepath.Dir(current)
+		if parent == current {
+			break // Reached root
+		}
+		current = parent
+	}
+
+	return "", os.ErrNotExist
+}

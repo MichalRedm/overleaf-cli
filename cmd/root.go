@@ -65,25 +65,22 @@ func resolveConfigPath(cmd *cobra.Command) string {
 
 	// If the config flag was not explicitly set by the user
 	if !cmd.Flags().Changed("config") {
-		// Check if it exists in the current directory
-		if _, err := os.Stat(configPath); os.IsNotExist(err) {
-			// Try relative to --src if it's available
-			srcFlag := cmd.Flags().Lookup("src")
-			if srcFlag != nil {
-				src := srcFlag.Value.String()
-				if src != "" && src != "." {
-					altPath := filepath.Join(src, config.GetConfigPath())
-					if _, err := os.Stat(altPath); err == nil {
-						return altPath
-					}
-					// Also check for legacy config in src
-					legacyAltPath := filepath.Join(src, config.LegacyConfigFile)
-					if _, err := os.Stat(legacyAltPath); err == nil {
-						return legacyAltPath
-					}
-				}
+		src := resolveSrcPath(cmd)
+		if src != "" {
+			// Try relative to src
+			altPath := filepath.Join(src, config.GetConfigPath())
+			if _, err := os.Stat(altPath); err == nil {
+				return altPath
 			}
-			
+			// Also check for legacy config in src
+			legacyAltPath := filepath.Join(src, config.LegacyConfigFile)
+			if _, err := os.Stat(legacyAltPath); err == nil {
+				return legacyAltPath
+			}
+		}
+
+		// Fallback to current directory if src didn't yield anything or wasn't found
+		if _, err := os.Stat(configPath); os.IsNotExist(err) {
 			// Check for legacy config in current directory as fallback
 			if _, err := os.Stat(config.LegacyConfigFile); err == nil {
 				return config.LegacyConfigFile
@@ -92,6 +89,28 @@ func resolveConfigPath(cmd *cobra.Command) string {
 	}
 
 	return configPath
+}
+
+func resolveSrcPath(cmd *cobra.Command) string {
+	srcFlag := cmd.Flags().Lookup("src")
+	if srcFlag == nil {
+		// If command doesn't have src flag, still try to find project root from CWD
+		if root, err := config.FindProjectRoot("."); err == nil {
+			return root
+		}
+		return "."
+	}
+
+	src := srcFlag.Value.String()
+
+	// If src is default (.) and not explicitly changed, try to autodetect
+	if !cmd.Flags().Changed("src") {
+		if root, err := config.FindProjectRoot("."); err == nil {
+			return root
+		}
+	}
+
+	return src
 }
 
 

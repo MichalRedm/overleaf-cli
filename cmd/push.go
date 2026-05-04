@@ -56,10 +56,7 @@ var pushCmd = &cobra.Command{
 			return
 		}
 
-		src, err := cmd.Flags().GetString("src")
-		if err != nil {
-			src = "."
-		}
+		src := resolveSrcPath(cmd)
 		deleteRemote, err := cmd.Flags().GetBool("delete")
 		if err != nil {
 			deleteRemote = false
