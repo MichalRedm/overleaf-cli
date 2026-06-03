@@ -57,7 +57,7 @@ func NewClient(baseURL, projectID, cookie, authType, authCommand string, useDock
 		ua: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
 	}
 
-	if projectID != "" && cookie != "" {
+	if cookie != "" {
 		// Auto-detect cookie name
 		success := false
 		for _, name := range cookieNames {
@@ -67,10 +67,12 @@ func NewClient(baseURL, projectID, cookie, authType, authCommand string, useDock
 			client.HTTP.Jar = newJar
 			client.CookieName = name
 			
-			if err := client.RefreshCSRF(); err == nil {
-				fmt.Printf("Auto-detected cookie name: %s\n", name)
-				success = true
-				break
+			if client.IsAuthenticated() {
+				if err := client.RefreshCSRF(); err == nil {
+					fmt.Printf("Auto-detected cookie name: %s\n", name)
+					success = true
+					break
+				}
 			}
 		}
 		if !success {

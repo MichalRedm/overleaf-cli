@@ -66,13 +66,18 @@ func (c *Client) GetOrCreateFolder(path string, rootID string, em *EntityMap) (s
 
 		if resp.StatusCode == 200 {
 			var res struct {
-				ID string `json:"id"`
+				ID  string `json:"id"`
+				ID2 string `json:"_id"`
 			}
 			if err := json.NewDecoder(resp.Body).Decode(&res); err != nil {
 				return "", err
 			}
-			em.Folders[currentPath] = res.ID
-			currentID = res.ID
+			folderID := res.ID
+			if folderID == "" {
+				folderID = res.ID2
+			}
+			em.Folders[currentPath] = folderID
+			currentID = folderID
 		} else {
 			// Check if already exists
 			respBody, err := io.ReadAll(resp.Body)

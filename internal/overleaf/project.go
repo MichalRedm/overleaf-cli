@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -14,32 +15,65 @@ func (c *Client) CreateProject(name string) (string, error) {
 	domain := strings.Split(strings.Split(c.BaseURL, "://")[1], ":")[0]
 	jsCode := fmt.Sprintf(`
 async (page) => {
+    // Wait for browser session to stabilize
+    await page.waitForTimeout(2000);
     const projectName = "%s";
-    await page.goto('%s/project');
     
+    // Set cookie before navigation to avoid redirecting to login page
     await page.context().addCookies([{
         "name": "%s",
         "value": "%s",
         "domain": "%s",
         "path": "/"
     }]);
-    await page.reload();
+    
+    // Attempt navigation with a retry in case of transient errors
+    try {
+        await page.goto('%s/project');
+    } catch (e) {
+        await page.waitForTimeout(2000);
+        await page.goto('%s/project');
+    }
 
-    await page.getByRole('button', { name: 'New project' }).click();
-    await page.getByRole('menuitem', { name: 'Blank project' }).click();
-    await page.getByLabel('Project name').fill(projectName);
-    await page.getByRole('button', { name: 'Create' }).click();
+    // Select the "New project" button or link (supporting both English and Polish)
+    const newProj = page.locator('.btn-new-project, a:has-text("New Project"), button:has-text("New Project"), a:has-text("Nowy projekt"), button:has-text("Nowy projekt")').first();
+    await newProj.click();
+
+    // Select the "Blank project" menu item or link
+    const blankProj = page.locator('a:has-text("Blank Project"), [role="menuitem"]:has-text("Blank Project"), a:has-text("Pusty projekt"), [role="menuitem"]:has-text("Pusty projekt")').first();
+    await blankProj.click();
+
+    // Fill project name
+    const nameInput = page.locator('input[name="name"], input[placeholder*="Project Name"], input[placeholder*="Nazwa projektu"]').first();
+    await nameInput.fill(projectName);
+
+    // Click "Create" button
+    const createBtn = page.locator('button[type="submit"]:has-text("Create"), button:has-text("Create"), button[type="submit"]:has-text("Utwórz"), button:has-text("Utwórz")').first();
+    await createBtn.click();
     
     await page.waitForURL(/\/project\/[a-f0-9]+/);
     return page.url().split('/').pop();
 }
-`, name, c.BaseURL, c.CookieName, c.Cookie, domain)
+`, name, c.CookieName, c.Cookie, domain, c.BaseURL, c.BaseURL)
 
-	tempJS := filepath.Join(os.TempDir(), fmt.Sprintf("create_project_%s.js", uuid.New().String()))
+	tempJS := filepath.Join(".", fmt.Sprintf("create_project_%s.js", uuid.New().String()))
 	if err := os.WriteFile(tempJS, []byte(jsCode), 0644); err != nil {
 		return "", err
 	}
 	defer os.Remove(tempJS)
+
+	// Start browser session
+	fmt.Println("Opening temporary Playwright session...")
+	openCmd := exec.Command("npx", "playwright-cli", "open")
+	if err := openCmd.Start(); err != nil {
+		return "", fmt.Errorf("failed to open playwright-cli session: %v", err)
+	}
+	// Give it a moment to initialize
+	time.Sleep(3 * time.Second)
+	defer func() {
+		fmt.Println("Closing temporary Playwright session...")
+		_ = exec.Command("npx", "playwright-cli", "close").Run()
+	}()
 
 	fmt.Printf("Creating project '%s' via Playwright...\n", name)
 	cmd := exec.Command("npx", "playwright-cli", "run-code", fmt.Sprintf("--filename=%s", tempJS), "--raw")
@@ -70,16 +104,25 @@ func (c *Client) DeleteProject(projectID string) error {
 	domain := strings.Split(strings.Split(c.BaseURL, "://")[1], ":")[0]
 	jsCode := fmt.Sprintf(`
 async (page) => {
+    // Wait for browser session to stabilize
+    await page.waitForTimeout(2000);
     const pid = "%s";
-    await page.goto('%s/project');
     
+    // Set cookie before navigation to avoid redirecting to login page
     await page.context().addCookies([{
         "name": "%s",
         "value": "%s",
         "domain": "%s",
         "path": "/"
     }]);
-    await page.reload();
+    
+    // Attempt navigation with a retry in case of transient errors
+    try {
+        await page.goto('%s/project');
+    } catch (e) {
+        await page.waitForTimeout(2000);
+        await page.goto('%s/project');
+    }
 
     await page.evaluate((id) => {
         const btn = document.querySelector(` + "`" + `button[onclick*="${id}"][onclick*="trash"]` + "`" + `) || 
@@ -102,13 +145,26 @@ async (page) => {
     await page.getByRole('button', { name: 'Confirm' }).click();
     return "OK";
 }
-`, pid, c.BaseURL, c.CookieName, c.Cookie, domain, c.BaseURL)
+`, pid, c.CookieName, c.Cookie, domain, c.BaseURL, c.BaseURL, c.BaseURL)
 
-	tempJS := filepath.Join(os.TempDir(), fmt.Sprintf("delete_project_%s.js", uuid.New().String()))
+	tempJS := filepath.Join(".", fmt.Sprintf("delete_project_%s.js", uuid.New().String()))
 	if err := os.WriteFile(tempJS, []byte(jsCode), 0644); err != nil {
 		return err
 	}
 	defer os.Remove(tempJS)
+
+	// Start browser session
+	fmt.Println("Opening temporary Playwright session...")
+	openCmd := exec.Command("npx", "playwright-cli", "open")
+	if err := openCmd.Start(); err != nil {
+		return fmt.Errorf("failed to open playwright-cli session: %v", err)
+	}
+	// Give it a moment to initialize
+	time.Sleep(3 * time.Second)
+	defer func() {
+		fmt.Println("Closing temporary Playwright session...")
+		_ = exec.Command("npx", "playwright-cli", "close").Run()
+	}()
 
 	fmt.Printf("Deleting project %s via Playwright...\n", pid)
 	cmd := exec.Command("npx", "playwright-cli", "run-code", fmt.Sprintf("--filename=%s", tempJS), "--raw")
